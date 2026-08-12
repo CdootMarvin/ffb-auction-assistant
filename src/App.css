@@ -26,3 +26,84 @@ td {
   padding: 4px 12px 4px 0;
   border-bottom: 1px solid #444;
 }
+
+.decision-panel {
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.player-search {
+  width: 100%;
+  max-width: 400px;
+  padding: 8px;
+  font-size: 1rem;
+}
+
+.search-matches {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 400px;
+}
+
+.search-matches button {
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+}
+
+.decision-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 6px;
+  border: 2px solid #666;
+}
+
+.decision-card h4 {
+  margin-top: 0;
+}
+
+.decision-card.recommendation-buy {
+  border-color: #2a7;
+}
+
+.decision-card.recommendation-overpay {
+  border-color: #d33;
+}
+
+.decision-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 12px 0;
+}
+
+.decision-stats > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 90px;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.stat-value {
+  font-size: 1.3rem;
+  font-weight: bold;
+}
+
+.explanation {
+  margin: 12px 0 0;
+  padding-left: 20px;
+}
+
+.explanation li {
+  margin-bottom: 4px;
+}

@@ -123,9 +123,17 @@ Goal: replace arbitrary multipliers with probability/distributions, **only if ju
 
 **Gate:** do not build this until Phase 10 backtesting shows the deterministic/heuristic model (Phases 2–6) has a real, measurable shortfall that simulation would fix. Simulating from uncalibrated guesses produces false statistical confidence, not more accuracy — see [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md). If testing shows simulation doesn't improve predictions, don't build it.
 
-## Phase 8 — Decision Interface
+## Phase 8 — Decision Interface — **DONE (2026-08-12)**
 
 Goal: make the information useful during a frantic auction. Answer "should I bid, and how high" at a glance: current value, expected price, range, your max, demand, remaining bidders, recommendation (buy/neutral/overpay), and the plain-language "why" behind any value change.
+
+- [x] "On the Board" panel: player search (type a name, click a match) + a decision card with current value, expected price, range, your max, demand (bidders), and recommendation, color-coded by BUY/NEUTRAL/OVERPAY.
+- [x] Plain-language "why" (`src/lib/explanation.ts`) — generates sentences from the same underlying factors already computed in Phases 2-6, not a separate model.
+- [x] Existing detailed tables (teams, economy, scarcity, full player list) kept below the decision panel, unchanged — still useful for transparency/verification, not removed.
+
+**Deliberately not built:** auto-detecting the current nomination from Sleeper's `metadata.hovered_player_id` field. Its exact semantics are unverified and can only really be tested against a genuinely live draft, which hasn't happened yet — logged in [IDEAS.md](IDEAS.md) rather than built on an unconfirmed assumption. Manual search is the reliable, verified interaction for now.
+
+**Verified in-browser:** selected Jahmyr Gibbs via search, decision card showed $61 current value / $61 expected / $37-$85 range / 12 bidders / NEUTRAL — matching the detailed table exactly — with correctly-reasoned explanation text ("12 of 12 teams still need a starting RB, with 25 comparable RBs left worth drafting").
 
 ## Phase 9 — Historical Data & Calibration
 

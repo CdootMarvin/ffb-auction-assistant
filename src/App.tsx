@@ -14,6 +14,7 @@ import { computeLeagueEconomy } from './lib/economy'
 import { computePositionScarcity, computeTeamPositionNeeds } from './lib/scarcity'
 import { computeRealisticBidders } from './lib/bidders'
 import { computeDynamicValues } from './lib/dynamicValue'
+import { generateExplanation } from './lib/explanation'
 
 const LEAGUE_ID_STORAGE_KEY = 'ffb-auction-assistant:league-id'
 
@@ -42,6 +43,9 @@ function App() {
   const [baseline, setBaseline] = useState<BaselineResult | null>(null)
   const [baselineLoading, setBaselineLoading] = useState(false)
   const [baselineError, setBaselineError] = useState<string | null>(null)
+
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
 
   const { picks, error: picksError } = useDraftPicks(data?.draft.draft_id ?? null)
 
@@ -124,6 +128,8 @@ function App() {
     if (!trimmed) return
     localStorage.setItem(LEAGUE_ID_STORAGE_KEY, trimmed)
     setConnectedLeagueId(trimmed)
+    setSearchQuery('')
+    setSelectedPlayerId(null)
   }
 
   const sortedPicks = [...picks].sort((a, b) => b.pick_no - a.pick_no)
@@ -160,6 +166,21 @@ function App() {
             (dynamicValues.get(a.playerId)?.currentValue ?? a.dollarValue),
         )
     : []
+
+  const searchMatches = searchQuery.trim()
+    ? availablePlayers
+        .filter((p) => p.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+        .slice(0, 8)
+    : []
+  const selectedPlayer = availablePlayers.find((p) => p.playerId === selectedPlayerId) ?? null
+  const selectedDv = selectedPlayer ? dynamicValues.get(selectedPlayer.playerId) : undefined
+  const selectedScarcity = selectedPlayer
+    ? positionScarcity.find((s) => s.position === selectedPlayer.position)
+    : undefined
+  const explanation =
+    selectedPlayer && selectedDv
+      ? generateExplanation(selectedPlayer, selectedDv, selectedScarcity, data?.league.total_rosters ?? 0)
+      : []
 
   return (
     <main>
@@ -219,6 +240,78 @@ function App() {
 
           {baseline && (
             <>
+              <section className="decision-panel">
+                <h3>On the Board</h3>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    setSelectedPlayerId(null)
+                  }}
+                  placeholder="Search for the player up for bid…"
+                  className="player-search"
+                />
+                {searchMatches.length > 0 && (
+                  <ul className="search-matches">
+                    {searchMatches.map((p) => (
+                      <li key={p.playerId}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPlayerId(p.playerId)
+                            setSearchQuery('')
+                          }}
+                        >
+                          {p.name} ({p.position}, {p.nflTeam})
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {selectedPlayer && selectedDv && (
+                  <div className={`decision-card recommendation-${selectedDv.recommendation.toLowerCase()}`}>
+                    <h4>
+                      {selectedPlayer.name} — {selectedPlayer.position}, {selectedPlayer.nflTeam}
+                    </h4>
+                    <div className="decision-stats">
+                      <div>
+                        <span className="stat-label">Current Value</span>
+                        <span className="stat-value">${selectedDv.currentValue}</span>
+                      </div>
+                      <div>
+                        <span className="stat-label">Expected Price</span>
+                        <span className="stat-value">${selectedDv.expectedPrice}</span>
+                      </div>
+                      <div>
+                        <span className="stat-label">Range</span>
+                        <span className="stat-value">
+                          ${selectedDv.rangeLow}–${selectedDv.rangeHigh}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="stat-label">Your Max</span>
+                        <span className="stat-value">${selectedDv.recommendedMax}</span>
+                      </div>
+                      <div>
+                        <span className="stat-label">Demand</span>
+                        <span className="stat-value">{selectedDv.realisticBidderCount} bidders</span>
+                      </div>
+                      <div>
+                        <span className="stat-label">Recommendation</span>
+                        <span className="stat-value">{selectedDv.recommendation}</span>
+                      </div>
+                    </div>
+                    <ul className="explanation">
+                      {explanation.map((line, i) => (
+                        <li key={i}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+
               <section>
                 <h3>Keepers &amp; Team Budgets</h3>
                 <p>
