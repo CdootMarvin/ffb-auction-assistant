@@ -1,0 +1,28 @@
+.connect-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.connect-form input {
+  flex: 1;
+  max-width: 320px;
+}
+
+.error {
+  color: #d33;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 4px 12px 4px 0;
+  border-bottom: 1px solid #444;
+}
