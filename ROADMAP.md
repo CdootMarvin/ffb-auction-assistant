@@ -39,20 +39,24 @@ Goal: create the skeleton.
 
 Success: you can open the app and know the development/deployment pipeline works.
 
-## Phase 1 — Sleeper Integration
+## Phase 1 — Sleeper Integration — **DONE (2026-08-12)**
 
 Goal: get the live draft data flowing.
 
-- Connect to Sleeper; identify the league (`1389362840074199040`) and users/teams.
-- Retrieve rosters — including each team's `keepers` array (native Sleeper field, confirmed present).
-- Retrieve draft information (draft `1389362840074199041`, auction type, $200/team, 16 rounds, 2QB/SuperFlex).
-- Detect new auction purchases via polling `/draft/{id}/picks`.
-- Track winning prices.
-- Update the application as the draft progresses.
+- [x] Connect to Sleeper; identify the league and users/teams (`src/lib/sleeperApi.ts`, `src/lib/sleeperTypes.ts` — types verified against real raw JSON, not paraphrased summaries).
+- [x] Retrieve rosters — including each team's `keepers` array.
+- [x] Retrieve draft information (auction type, budget, rounds all read from the real league/draft objects, not hardcoded).
+- [x] Detect new auction purchases via polling `/draft/{id}/picks` every 3s (`src/hooks/useDraftPicks.ts`).
+- [x] Track winning prices (`pick.metadata.amount`).
+- [x] Update the application as the draft progresses — basic UI in `src/App.tsx`: connect form, teams table with keeper counts, live picks feed.
+
+**Verified in-browser**, not just built: connected to last season's *completed* draft (192 real picks, correct names/prices/positions/buyer resolution) and to the real current *pre-draft* league (correct keeper counts per team, empty picks list handled cleanly). **Resolved the one open Phase 0 question**: direct browser `fetch` to the Sleeper API works with no CORS issues — confirmed with real network activity, not just a server-side check.
+
+**Discovery that simplifies later phases:** each pick's `metadata` already includes the player's name/position/NFL team, so Phase 1 never needed Sleeper's large (5MB+) full player database. That fetch (needed for *remaining*/undrafted players) is deferred to whenever Phase 2 actually needs it, not pulled preemptively.
 
 Note: this phase retrieves keeper *data* (who's kept). Computing keeper *cost* and the resulting post-keeper starting budget/pool is Phase 2's job, since that's where "value before the auction" is actually produced.
 
-Success: you can watch your actual auction happening inside the application.
+Success: you can watch your actual auction happening inside the application. Confirmed.
 
 ## Phase 2 — Baseline Player Values
 

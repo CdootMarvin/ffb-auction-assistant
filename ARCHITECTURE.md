@@ -63,7 +63,7 @@ GitHub repo → GitHub Pages via the standard Vite build + Pages deploy workflow
 
 ## Known Open Items (verify empirically, see [ROADMAP.md](ROADMAP.md) Phase 0)
 
-- Confirm Sleeper API CORS headers permit direct browser `fetch` calls from a GitHub Pages origin.
-- Confirm Sleeper's rate limits comfortably accommodate a multi-second polling interval during a live draft.
-- Confirm the undocumented projections endpoint also permits direct browser `fetch` (CORS), same as the documented endpoints — not yet tested from an actual browser context, only via server-side fetch.
-- Determine how this league represents keepers in Sleeper's data (dedicated field/endpoint vs. manual commissioner setup) — unknown, needs a real check once the league ID is available.
+- ~~Confirm Sleeper API CORS headers permit direct browser `fetch` calls.~~ **Confirmed 2026-08-12** — league/users/rosters/draft/picks endpoints all fetch successfully directly from the browser (tested against both a real completed draft and the real current pre-draft league), no CORS errors.
+- Confirm Sleeper's rate limits comfortably accommodate a multi-second polling interval during a live draft — 3s polling used in Phase 1 with no issues so far, but not yet tested across a full multi-hour live draft.
+- Confirm the undocumented projections endpoint also permits direct browser `fetch` (CORS) — still untested from the browser; not needed until Phase 2.
+- ~~Determine how this league represents keepers in Sleeper's data.~~ **Confirmed** — see [MODELING.md](MODELING.md) Layer 0 and Phase 1 verification in [ROADMAP.md](ROADMAP.md).
