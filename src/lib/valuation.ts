@@ -2,15 +2,7 @@ import { computeProjectedPoints } from './scoring'
 import type { SleeperProjection, SleeperRoster } from './sleeperTypes'
 
 type StartingPosition = 'QB' | 'RB' | 'WR' | 'TE'
-const STARTING_POSITIONS: StartingPosition[] = ['QB', 'RB', 'WR', 'TE']
-
-// How much of each FLEX/SUPER_FLEX slot is assumed to go to each position, for the
-// purpose of computing replacement level. This is a documented convention, not a
-// measured fact - revisit if backtesting (Phase 10) shows it's off. SUPER_FLEX is
-// assumed 100% QB, which is standard practice for 2QB/SuperFlex leagues: QB scarcity
-// makes a "replacement" QB2 worth more than a marginal RB/WR/TE flex play in
-// practice. The 2 FLEX slots are split RB/WR/TE by rough typical usage.
-const FLEX_ALLOCATION: Record<'RB' | 'WR' | 'TE', number> = { RB: 0.5, WR: 0.4, TE: 0.1 }
+const FLEX_ELIGIBLE_POSITIONS: Array<'RB' | 'WR' | 'TE'> = ['RB', 'WR', 'TE']
 
 export interface RosterRequirements {
   numTeams: number
@@ -38,16 +30,6 @@ export function parseRosterRequirements(
     // BN and any other slot types don't affect replacement level.
   }
   return { numTeams, starters, flexSlots, superFlexSlots, totalRosterSlots: rosterPositions.length }
-}
-
-function replacementRank(position: StartingPosition, req: RosterRequirements): number {
-  let rank = req.numTeams * req.starters[position]
-  if (position === 'QB') {
-    rank += req.numTeams * req.superFlexSlots
-  } else {
-    rank += Math.round(req.numTeams * req.flexSlots * FLEX_ALLOCATION[position])
-  }
-  return rank
 }
 
 export interface ProjectedPlayer {
@@ -78,19 +60,57 @@ export function buildProjectedPlayers(
   return players
 }
 
+// QB replacement: SUPER_FLEX is assumed 100% QB, standard practice for 2QB/SuperFlex
+// leagues - QB scarcity typically makes a "backup" starting QB worth more than a
+// marginal RB/WR/TE flex play. This one is a documented assumption, not derived.
+//
+// RB/WR/TE replacement: rather than guessing a fixed split of the FLEX slots, this
+// uses a market-clearing approach - each FLEX slot leaguewide goes to whichever
+// RB/WR/TE player (beyond that position's own dedicated starters) has the most
+// points, position-agnostic. This lets flex allocation fall out of the real shape
+// of this year's talent pool instead of an assumed percentage, and it naturally
+// equalizes replacement-level points across RB/WR/TE (confirmed empirically against
+// this league's 2026 projections: RB/WR/TE replacement levels landed within ~1 point
+// of each other, vs. a ~50 point spread under a fixed 50/40/10 guess). See
+// MODELING.md Layer 1.
 export function computeReplacementLevels(
   players: ProjectedPlayer[],
   req: RosterRequirements,
 ): Record<StartingPosition, number> {
-  const levels = {} as Record<StartingPosition, number>
-  for (const position of STARTING_POSITIONS) {
-    const sorted = players
+  const byPosition = {} as Record<StartingPosition, ProjectedPlayer[]>
+  for (const position of ['QB', 'RB', 'WR', 'TE'] as StartingPosition[]) {
+    byPosition[position] = players
       .filter((p) => p.position === position)
       .sort((a, b) => b.points - a.points)
-    const rank = replacementRank(position, req)
-    const idx = Math.min(rank, sorted.length - 1)
-    levels[position] = sorted[idx]?.points ?? 0
   }
+
+  const levels = {} as Record<StartingPosition, number>
+
+  const qbStartable = req.numTeams * (req.starters.QB + req.superFlexSlots)
+  levels.QB = byPosition.QB[Math.min(qbStartable, byPosition.QB.length - 1)]?.points ?? 0
+
+  const dedicated = {} as Record<'RB' | 'WR' | 'TE', number>
+  const flexPool: Array<{ position: 'RB' | 'WR' | 'TE'; points: number }> = []
+  for (const position of FLEX_ELIGIBLE_POSITIONS) {
+    dedicated[position] = req.numTeams * req.starters[position]
+    for (const p of byPosition[position].slice(dedicated[position])) {
+      flexPool.push({ position, points: p.points })
+    }
+  }
+  flexPool.sort((a, b) => b.points - a.points)
+
+  const flexSlotsLeaguewide = req.numTeams * req.flexSlots
+  const flexCount: Record<'RB' | 'WR' | 'TE', number> = { RB: 0, WR: 0, TE: 0 }
+  for (const pick of flexPool.slice(0, flexSlotsLeaguewide)) {
+    flexCount[pick.position]++
+  }
+
+  for (const position of FLEX_ELIGIBLE_POSITIONS) {
+    const startable = dedicated[position] + flexCount[position]
+    const sorted = byPosition[position]
+    levels[position] = sorted[Math.min(startable, sorted.length - 1)]?.points ?? 0
+  }
+
   return levels
 }
 
