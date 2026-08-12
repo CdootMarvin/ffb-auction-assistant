@@ -18,6 +18,16 @@ table {
   border-collapse: collapse;
   width: 100%;
   margin-bottom: 24px;
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.picks-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 th,

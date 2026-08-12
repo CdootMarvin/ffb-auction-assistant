@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   getDraft,
   getDraftPicks,
@@ -42,7 +42,12 @@ function App() {
   const [leagueIdInput, setLeagueIdInput] = useState(
     () => localStorage.getItem(LEAGUE_ID_STORAGE_KEY) ?? '',
   )
-  const [connectedLeagueId, setConnectedLeagueId] = useState<string | null>(null)
+  // Auto-reconnect on mount if a league was previously connected (e.g. the tab
+  // was refreshed or crashed mid-draft) - draft-day resilience, see ROADMAP.md
+  // Phase 11.
+  const [connectedLeagueId, setConnectedLeagueId] = useState<string | null>(
+    () => localStorage.getItem(LEAGUE_ID_STORAGE_KEY) || null,
+  )
   const [data, setData] = useState<LeagueData | null>(null)
   const [loading, setLoading] = useState(false)
   const [connectError, setConnectError] = useState<string | null>(null)
@@ -59,7 +64,23 @@ function App() {
   const [historicalAccuracyNote, setHistoricalAccuracyNote] = useState<string | null>(null)
   const [backtest, setBacktest] = useState<BacktestResult | null>(null)
 
-  const { picks, error: picksError } = useDraftPicks(data?.draft.draft_id ?? null)
+  const {
+    picks,
+    error: picksError,
+    lastUpdated: picksLastUpdated,
+    refreshNow: refreshPicksNow,
+  } = useDraftPicks(data?.draft.draft_id ?? null)
+
+  // Ticks independently of poll success/failure so the staleness warning below
+  // still advances even if repeated polls fail with the identical error message
+  // (which wouldn't otherwise trigger a re-render).
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(Date.now()), 5000)
+    return () => clearInterval(interval)
+  }, [])
+  const picksStaleSeconds = picksLastUpdated != null ? Math.round((nowTick - picksLastUpdated) / 1000) : null
+  const picksStale = picksStaleSeconds != null && picksStaleSeconds > 15
 
   useEffect(() => {
     if (!connectedLeagueId) return
@@ -81,7 +102,12 @@ function App() {
       } catch (e) {
         if (!cancelled) {
           setData(null)
-          setConnectError(e instanceof Error ? e.message : 'Failed to connect to league')
+          const message = e instanceof Error ? e.message : ''
+          setConnectError(
+            message.includes('404')
+              ? `League ${connectedLeagueId} not found - double check the League ID.`
+              : message || 'Failed to connect to league',
+          )
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -218,37 +244,47 @@ function App() {
   const sortedPicks = [...picks].sort((a, b) => b.pick_no - a.pick_no)
   const rosterById = new Map(data?.rosters.map((r) => [r.roster_id, r]) ?? [])
 
-  const economy = baseline ? computeLeagueEconomy(baseline, picks) : null
-  const teamEconomyByRoster = new Map(economy?.teamEconomy.map((t) => [t.rosterId, t]) ?? [])
+  // Memoized as a group: these all transitively depend only on baseline/picks/data,
+  // not on UI-only state like searchQuery. Without this, every keystroke in the
+  // search box (or any other unrelated re-render) would recompute the full
+  // economy/scarcity/bidders/dynamicValue pipeline over every player and team from
+  // scratch - wasteful, and risks feeling janky under live-draft time pressure.
+  const { economy, teamEconomyByRoster, positionScarcity, dynamicValues, keptPlayers, availablePlayers } =
+    useMemo(() => {
+      const economy = baseline ? computeLeagueEconomy(baseline, picks) : null
+      const teamEconomyByRoster = new Map(economy?.teamEconomy.map((t) => [t.rosterId, t]) ?? [])
 
-  const rosterReq =
-    data != null ? parseRosterRequirements(data.league.roster_positions, data.league.total_rosters) : null
-  const teamNeeds =
-    data != null && baseline != null && rosterReq != null
-      ? computeTeamPositionNeeds(data.rosters, baseline, picks, rosterReq)
-      : []
-  const positionScarcity = baseline ? computePositionScarcity(baseline, picks, teamNeeds) : []
+      const rosterReq =
+        data != null ? parseRosterRequirements(data.league.roster_positions, data.league.total_rosters) : null
+      const teamNeeds =
+        data != null && baseline != null && rosterReq != null
+          ? computeTeamPositionNeeds(data.rosters, baseline, picks, rosterReq)
+          : []
+      const positionScarcity = baseline ? computePositionScarcity(baseline, picks, teamNeeds) : []
 
-  const bidders =
-    baseline && economy
-      ? computeRealisticBidders(baseline.players, economy.draftedPlayerIds, teamEconomyByRoster, teamNeeds)
-      : new Map()
+      const bidders =
+        baseline && economy
+          ? computeRealisticBidders(baseline.players, economy.draftedPlayerIds, teamEconomyByRoster, teamNeeds)
+          : new Map()
 
-  const dynamicValues =
-    baseline && economy
-      ? computeDynamicValues(baseline.players, economy.draftedPlayerIds, economy, positionScarcity, bidders)
-      : new Map()
+      const dynamicValues =
+        baseline && economy
+          ? computeDynamicValues(baseline.players, economy.draftedPlayerIds, economy, positionScarcity, bidders)
+          : new Map()
 
-  const keptPlayers = baseline?.players.filter((p) => p.isKept) ?? []
-  const availablePlayers = baseline
-    ? [...baseline.players]
-        .filter((p) => !p.isKept && p.vor > 0 && !economy?.draftedPlayerIds.has(p.playerId))
-        .sort(
-          (a, b) =>
-            (dynamicValues.get(b.playerId)?.currentValue ?? b.dollarValue) -
-            (dynamicValues.get(a.playerId)?.currentValue ?? a.dollarValue),
-        )
-    : []
+      const keptPlayers = baseline?.players.filter((p) => p.isKept) ?? []
+      const availablePlayers = baseline
+        ? [...baseline.players]
+            .filter((p) => !p.isKept && p.vor > 0 && !economy?.draftedPlayerIds.has(p.playerId))
+            .sort(
+              (a, b) =>
+                (dynamicValues.get(b.playerId)?.currentValue ?? b.dollarValue) -
+                (dynamicValues.get(a.playerId)?.currentValue ?? a.dollarValue),
+            )
+        : []
+
+      return { economy, teamEconomyByRoster, teamNeeds, positionScarcity, bidders, dynamicValues, keptPlayers, availablePlayers }
+    }, [baseline, picks, data])
 
   const searchMatches = searchQuery.trim()
     ? availablePlayers
@@ -692,7 +728,17 @@ function App() {
 
           <section>
             <h3>Live Picks ({picks.length})</h3>
-            {picksError && <p className="error">{picksError}</p>}
+            <div className="picks-status">
+              <span className={picksStale ? 'error' : undefined}>
+                {picksStaleSeconds != null
+                  ? `Updated ${picksStaleSeconds}s ago${picksStale ? ' — data may be stale, check your connection' : ''}`
+                  : 'Waiting for first update…'}
+              </span>
+              <button type="button" onClick={refreshPicksNow}>
+                Refresh now
+              </button>
+            </div>
+            {picksError && <p className="error">Poll failed: {picksError} (will keep retrying automatically)</p>}
             {sortedPicks.length === 0 ? (
               <p>No picks yet.</p>
             ) : (
