@@ -1,7 +1,7 @@
 import { computeProjectedPoints } from './scoring'
 import type { SleeperProjection, SleeperRoster } from './sleeperTypes'
 
-type StartingPosition = 'QB' | 'RB' | 'WR' | 'TE'
+export type StartingPosition = 'QB' | 'RB' | 'WR' | 'TE'
 const FLEX_ELIGIBLE_POSITIONS: Array<'RB' | 'WR' | 'TE'> = ['RB', 'WR', 'TE']
 
 export interface RosterRequirements {
@@ -163,6 +163,7 @@ export interface BaselineResult {
   teamBudgets: TeamBudgetState[]
   replacementLevels: Record<StartingPosition, number>
   spendablePool: number
+  totalAvailableVor: number
 }
 
 export function computeBaseline(
@@ -214,5 +215,5 @@ export function computeBaseline(
     return { ...p, dollarValue }
   })
 
-  return { players, teamBudgets, replacementLevels, spendablePool }
+  return { players, teamBudgets, replacementLevels, spendablePool, totalAvailableVor }
 }

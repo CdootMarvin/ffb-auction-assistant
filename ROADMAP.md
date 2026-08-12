@@ -72,15 +72,17 @@ Goal: establish the "before the auction" value. Don't try to be clever yet — a
 
 **Sanity-check backtest — done, and it surfaced something real:** compared against last season's actual sale prices in this league. Elite QBs initially came out significantly cheaper relative to elite RBs than the real market bore out last year. Investigating why led to a genuine methodology fix, not a guessed patch: replacement level for RB/WR/TE originally used a fixed guessed FLEX-slot split (RB 50%/WR 40%/TE 10%), which produced a ~50-point gap between RB and WR replacement level that didn't hold up under scrutiny (user's suggestion). Replaced with a market-clearing allocation (FLEX slots go to whichever RB/WR/TE player has the most points, position-agnostic) — confirmed empirically to equalize RB/WR/TE replacement levels within ~1 point of each other and to narrow the QB-vs-RB pricing gap as a side effect. See [MODELING.md](MODELING.md) Layer 1. QB's own replacement convention (SUPER_FLEX = 100% QB) is unchanged and remains a flagged item for Phase 9/10.
 
-## Phase 3 — League Economic Model
+## Phase 3 — League Economic Model — **DONE (2026-08-12)**
 
 Goal: understand what has happened to the auction economy. After every purchase, track:
 
-- Dollars remaining by team, total dollars remaining.
-- Roster spots remaining, players remaining.
-- Spending relative to baseline.
-- Inflation/deflation — the league-wide (remaining $ / remaining VOR) index vs. the original ratio ([MODELING.md](MODELING.md) Layer 3).
-- Position-specific spending, remaining projected production.
+- [x] Dollars remaining by team, total dollars remaining (`src/lib/economy.ts` `computeLeagueEconomy`, wired into the Team Budgets table live).
+- [x] Roster spots remaining, players remaining (drafted players removed from the "available" baseline table).
+- [x] Spending relative to baseline — per-position spending tracked; per-player over/under baseline comparison deferred to Phase 6/8 (needs the "why" framing, not just raw tracking).
+- [x] Inflation/deflation index ([MODELING.md](MODELING.md) Layer 3).
+- [x] Position-specific spending, remaining projected VOR by position.
+
+**Verified against real data, including a bug caught and fixed:** a completed historical draft (192/192 picks) shows exact conservation — every team lands at $0/0 slots remaining, and position spending sums to exactly $2,400 (the full league budget). The real pre-draft league (0 picks) initially showed the inflation index at 1.09 instead of the required 1.00 — caught by deliberately checking the zero-picks edge case, traced to comparing a reserve-adjusted number against a non-adjusted one, fixed, now reads exactly 1.00. See [MODELING.md](MODELING.md) Layer 3 for the full writeup, including a documented open question: the inflation index's direction has only been checked at the two extremes (0 and 192 picks), not against a genuinely in-progress draft, since the real 2026 draft hasn't started yet.
 
 Answers: "What does the auction economy look like right now?"
 

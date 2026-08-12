@@ -10,6 +10,7 @@ import {
 import type { SleeperDraft, SleeperLeague, SleeperRoster, SleeperUser } from './lib/sleeperTypes'
 import { useDraftPicks } from './hooks/useDraftPicks'
 import { computeBaseline, type BaselineResult } from './lib/valuation'
+import { computeLeagueEconomy } from './lib/economy'
 
 const LEAGUE_ID_STORAGE_KEY = 'ffb-auction-assistant:league-id'
 
@@ -125,9 +126,14 @@ function App() {
   const sortedPicks = [...picks].sort((a, b) => b.pick_no - a.pick_no)
   const rosterById = new Map(data?.rosters.map((r) => [r.roster_id, r]) ?? [])
 
+  const economy = baseline ? computeLeagueEconomy(baseline, picks) : null
+  const teamEconomyByRoster = new Map(economy?.teamEconomy.map((t) => [t.rosterId, t]) ?? [])
+
   const keptPlayers = baseline?.players.filter((p) => p.isKept) ?? []
   const availablePlayers = baseline
-    ? [...baseline.players].filter((p) => !p.isKept && p.vor > 0).sort((a, b) => b.dollarValue - a.dollarValue)
+    ? [...baseline.players]
+        .filter((p) => !p.isKept && p.vor > 0 && !economy?.draftedPlayerIds.has(p.playerId))
+        .sort((a, b) => b.dollarValue - a.dollarValue)
     : []
 
   return (
@@ -201,6 +207,9 @@ function App() {
                       <th>Keepers</th>
                       <th>Keeper Cost</th>
                       <th>Effective Budget</th>
+                      <th>Picks Made</th>
+                      <th>Spent</th>
+                      <th>Remaining Budget</th>
                       <th>Remaining Slots</th>
                     </tr>
                   </thead>
@@ -208,6 +217,7 @@ function App() {
                     {baseline.teamBudgets.map((tb) => {
                       const roster = rosterById.get(tb.rosterId)
                       const teamKeepers = keptPlayers.filter((p) => p.keptByRosterId === tb.rosterId)
+                      const te = teamEconomyByRoster.get(tb.rosterId)
                       return (
                         <tr key={tb.rosterId}>
                           <td>{teamNameForRoster(roster, data.users)}</td>
@@ -218,13 +228,63 @@ function App() {
                           </td>
                           <td>${tb.keeperCostTotal}</td>
                           <td>${tb.effectiveBudget}</td>
-                          <td>{tb.remainingSlots}</td>
+                          <td>{te?.picksMade ?? 0}</td>
+                          <td>${te?.spentInDraft ?? 0}</td>
+                          <td>${te?.remainingBudget ?? tb.effectiveBudget}</td>
+                          <td>{te?.remainingSlots ?? tb.remainingSlots}</td>
                         </tr>
                       )
                     })}
                   </tbody>
                 </table>
               </section>
+
+              {economy && (
+                <section>
+                  <h3>League Economy</h3>
+                  <p>
+                    Inflation index:{' '}
+                    <strong>
+                      {economy.inflationIndex != null ? economy.inflationIndex.toFixed(2) : '—'}
+                    </strong>{' '}
+                    {economy.inflationIndex != null &&
+                      (economy.inflationIndex > 1
+                        ? '(remaining players running more expensive than the preseason baseline)'
+                        : economy.inflationIndex < 1
+                          ? '(remaining players running cheaper than the preseason baseline)'
+                          : '(exactly tracking the preseason baseline)')}
+                  </p>
+                  <p>
+                    Remaining league money: ${economy.remainingTotalMoney} · Remaining VOR:{' '}
+                    {economy.remainingTotalVor.toFixed(1)}
+                  </p>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Position</th>
+                        <th>Spent So Far</th>
+                        <th>Remaining VOR</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(['QB', 'RB', 'WR', 'TE'] as const).map((pos) => (
+                        <tr key={pos}>
+                          <td>{pos}</td>
+                          <td>${economy.positionSpending[pos]}</td>
+                          <td>{economy.positionRemainingVor[pos].toFixed(1)}</td>
+                        </tr>
+                      ))}
+                      {economy.otherSpending > 0 && (
+                        <tr>
+                          <td>Other</td>
+                          <td>${economy.otherSpending}</td>
+                          <td>—</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </section>
+              )}
 
               <section>
                 <h3>Baseline Player Values ({availablePlayers.length} above replacement)</h3>

@@ -64,16 +64,20 @@ player static $ = max(1, round((player VOR / total VOR of available non-kept pla
 
 **Empirical finding, partially improved by the market-clearing FLEX fix above (2026-08-12):** comparing this baseline's output against last season's *actual* sale prices in this same league, elite QBs sold for roughly the same price as elite RBs last year (Allen $61, Lamar $65, Daniels $61, vs. Bijan $63, Saquon $60). Under the original fixed-percentage FLEX split, this baseline put RB1 (Gibbs, $68) well above QB1 (Allen, $48) — a bigger gap than the real market showed. After switching RB/WR/TE replacement to the market-clearing method, the gap narrowed substantially (Gibbs $61 vs. Allen $52) simply as a side effect of RB/WR/TE replacement levels becoming more consistent with each other — QB wasn't touched directly. Still somewhat below the historical top-of-market pattern, and QB's own replacement convention (SUPER_FLEX = 100% QB, a fixed assumption) hasn't been re-examined the same way RB/WR/TE's was. **Still not patched with an arbitrary QB premium** — remains a candidate for Phase 9/10 to test properly (e.g., whether QB's replacement rank should also be derived some other way, rather than assumed), now a smaller gap than before but not fully explained away.
 
-## Layer 3 — Dynamic re-scaling (inflation index)
+## Layer 3 — League economic tracking + inflation index — **implemented 2026-08-12** (`src/lib/economy.ts`)
 
-The core mechanism for tracking mid-draft value change. Recompute Layer 2 using **remaining** money and **remaining** VOR instead of preseason totals:
+Tracks what has actually happened in the live auction, on top of the Phase 2 baseline: per-team picks made/spent/remaining budget/remaining slots (`computeLeagueEconomy`), which players are gone, per-position spending and remaining VOR, and the league-wide inflation index.
 
 ```
-inflation index = (remaining league $ / remaining rosterable VOR) / (original $ / original VOR)
-dynamic value (pre-scarcity) = static value * inflation index
+remaining spendable pool = sum(remaining team budgets) - sum(remaining roster slots) * $1
+inflation index = (remaining spendable pool / remaining rosterable VOR) / (original spendable pool / original VOR)
 ```
 
-If early players go for more than projected, remaining $/VOR drops relative to original → index < 1 isn't right, walk through the direction carefully when implementing: overspending early means *less* money remains relative to remaining talent, so remaining players' dynamic value should fall, and vice versa. Verify the sign empirically against a real backtest before trusting it.
+**Bug caught during verification, worth documenting so it isn't reintroduced:** the first implementation compared the *raw* sum of remaining team budgets against the *reserve-adjusted* original `spendablePool` (which already subtracts $1 per remaining slot, per Layer 2) — an apples-to-oranges comparison. This showed up as the inflation index reading ~1.09 at zero picks made, when it must be *exactly* 1.00 at that point (nothing has happened yet). Caught by deliberately checking the zero-picks case rather than only checking a populated draft. Fixed by applying the same $1/remaining-slot reserve to the remaining-money side before computing the ratio.
+
+**Verified against real data:** a fully completed historical draft (192/192 picks, this same league's prior season) shows every team landing at exactly $0 remaining budget / 0 remaining slots, and position spending (QB $548 + RB $809 + WR $819 + TE $224) sums to exactly $2,400 — the league's full budget, dollar for dollar. The real current pre-draft league (0 picks) shows the inflation index at exactly 1.00, as it must.
+
+**Direction, confirmed against PROJECT_SPEC's own example:** if the first five players sell for ~$100 against a $60 baseline, the league has burned a large amount of money relative to how much VOR those five players actually represented — less money remains, relative to remaining talent, than at the start. `remaining $/VOR` falls below `original $/VOR`, inflation index drops below 1, and remaining players read as *cheaper* than baseline. This is the same direction PROJECT_SPEC's own example describes ("the league has spent a huge amount of money early... the $60 value may no longer be appropriate" — implicitly cheaper, since less money is chasing the rest). Conversely, if early players go for less than baseline, more money remains relative to remaining talent, and the index rises above 1 (remaining players read as more expensive) — matching PROJECT_SPEC's second example directly. Confirmed at the two extremes (0 and 192 picks); not yet observed against a genuinely in-progress draft, since the real 2026 draft hasn't started. Re-verify once it does.
 
 ## Layer 4 — Positional scarcity adjustment
 
