@@ -21,6 +21,7 @@ import {
   sameRosterFormat,
   type HistoricalAccuracyResult,
 } from './lib/historicalAccuracy'
+import { runBacktest, type BacktestResult } from './lib/backtest'
 
 const LEAGUE_ID_STORAGE_KEY = 'ffb-auction-assistant:league-id'
 
@@ -56,6 +57,7 @@ function App() {
   const [historicalAccuracy, setHistoricalAccuracy] = useState<HistoricalAccuracyResult | null>(null)
   const [historicalAccuracyLoading, setHistoricalAccuracyLoading] = useState(false)
   const [historicalAccuracyNote, setHistoricalAccuracyNote] = useState<string | null>(null)
+  const [backtest, setBacktest] = useState<BacktestResult | null>(null)
 
   const { picks, error: picksError } = useDraftPicks(data?.draft.draft_id ?? null)
 
@@ -144,6 +146,7 @@ function App() {
       setHistoricalAccuracyLoading(true)
       setHistoricalAccuracyNote(null)
       setHistoricalAccuracy(null)
+      setBacktest(null)
       try {
         const d = data as LeagueData
         const historicalLeague = await getLeague(d.league.previous_league_id as string)
@@ -176,6 +179,15 @@ function App() {
           historicalPicks,
         )
         if (!cancelled) setHistoricalAccuracy(result)
+
+        const backtestResult = runBacktest(
+          historicalLeague,
+          historicalRosters,
+          historicalProjections,
+          historicalDraft.settings.budget,
+          historicalPicks,
+        )
+        if (!cancelled) setBacktest(backtestResult)
       } catch (e) {
         if (!cancelled) {
           setHistoricalAccuracyNote(
@@ -596,6 +608,85 @@ function App() {
                   </>
                 )}
               </section>
+
+              {backtest && (
+                <section>
+                  <h3>Point-in-Time Backtest</h3>
+                  <p>
+                    Replayed the {backtest.season} draft pick by pick — at each pick, only picks that happened
+                    strictly before it are known, exactly like a live draft. Compares three tiers of increasing
+                    complexity against what each player actually sold for. {backtest.picks.length} of{' '}
+                    {backtest.picks.length + backtest.excludedPickCount} picks matched to a projected player.
+                  </p>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Model</th>
+                        <th>MAE</th>
+                        <th>MAPE</th>
+                        <th>Correlation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Static baseline only (no draft-day adjustment)</td>
+                        <td>${backtest.static.mae.toFixed(2)}</td>
+                        <td>{(backtest.static.mape * 100).toFixed(0)}%</td>
+                        <td>{backtest.static.correlation != null ? backtest.static.correlation.toFixed(2) : '—'}</td>
+                      </tr>
+                      <tr>
+                        <td>+ League-wide inflation only</td>
+                        <td>${backtest.inflationOnly.mae.toFixed(2)}</td>
+                        <td>{(backtest.inflationOnly.mape * 100).toFixed(0)}%</td>
+                        <td>
+                          {backtest.inflationOnly.correlation != null
+                            ? backtest.inflationOnly.correlation.toFixed(2)
+                            : '—'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Full model (+ positional scarcity + bidders)</td>
+                        <td>${backtest.fullModel.mae.toFixed(2)}</td>
+                        <td>{(backtest.fullModel.mape * 100).toFixed(0)}%</td>
+                        <td>
+                          {backtest.fullModel.correlation != null ? backtest.fullModel.correlation.toFixed(2) : '—'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <h4>Full model, by position</h4>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Position</th>
+                        <th>Picks</th>
+                        <th>MAE</th>
+                        <th>MAPE</th>
+                        <th>Correlation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(['QB', 'RB', 'WR', 'TE'] as const).map((pos) => {
+                        const s = backtest.fullModelByPosition[pos]
+                        return (
+                          <tr key={pos}>
+                            <td>{pos}</td>
+                            <td>{s.count}</td>
+                            <td>${s.mae.toFixed(2)}</td>
+                            <td>{(s.mape * 100).toFixed(0)}%</td>
+                            <td>{s.correlation != null ? s.correlation.toFixed(2) : '—'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  <p>
+                    Honest limitation: this draws on the same single historical draft Phase 9 already used. Not a
+                    held-out validation — a sanity/regression check. A better score here doesn't prove the extra
+                    complexity is worth it beyond this one draft.
+                  </p>
+                </section>
+              )}
             </>
           )}
 

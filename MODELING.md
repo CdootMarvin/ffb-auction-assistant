@@ -176,9 +176,36 @@ This confirms the specific mechanism hypothesized back in Layer 1/2, not just th
 
 **Decision: still not patched.** This isn't a "constant to nudge via shrinkage" the way the FLEX split was — the fix here would need to change the *shape* of the QB value curve near the replacement cliff (e.g. a steeper drop-off right at the startable/non-startable boundary), not a single tunable number, and one data point isn't enough to design that responsibly. Documented here as a precise, evidence-based target for Phase 9/10 revisit once real 2026 draft-day data provides a second data point — see ROADMAP.md.
 
-## Evaluation / backtesting
+## Evaluation / backtesting — **implemented 2026-08-12** (`src/lib/backtest.ts`)
 
 Primary metric: mean absolute error (and % error) between predicted dynamic value and actual sale price, computed by replaying a real historical draft pick-by-pick through the engine. Use this to validate any formula or constant change before trusting it — don't tune by feel.
+
+**Point-in-time replay, unlike Phase 9's static comparison:** at each pick, only picks strictly *before* it are known — exactly like a real live draft, no hindsight. Three tiers compared against actual sale price: (1) static baseline only, (2) + league-wide inflation only, (3) full model (+ positional scarcity + bidders). Run against the same 2025 draft used in Phase 9 (still the only structurally comparable historical draft — see above).
+
+**Overall results:**
+
+| Tier | MAE | MAPE | Correlation |
+|---|---|---|---|
+| Static baseline only | $4.56 | 52% | 0.91 |
+| + League-wide inflation only | $4.36 | 72% | 0.96 |
+| Full model | $4.34 | 48% | 0.93 |
+
+Full model beats static on all three metrics (modestly on MAE). It does *not* cleanly beat the middle "inflation-only" tier — worse correlation (0.93 vs 0.96), though much better MAPE (48% vs 72%). Not a clean "more complexity wins" story, and reported as such rather than spun positive.
+
+**Full model, by position — this is where it gets specific and useful:**
+
+| Position | Static MAE / Corr | Full Model MAE / Corr | Verdict |
+|---|---|---|---|
+| QB | $8.21 / 0.89 | $8.45 / 0.90 | Roughly a wash — as expected, the position-inflation/bidder layers don't fix the QB cliff (Layer 2 finding above); that needs a shape change, not a scaling adjustment |
+| RB | $3.81 / 0.97 | $3.16 / 0.96 | Clear improvement |
+| WR | $4.68 / 0.91 | $4.18 / 0.93 | Clear improvement |
+| TE | $1.42 / 0.98 | $2.38 / 0.97 | **Got worse** |
+
+**TE getting worse is a real, specific, mechanistically-understood finding, not noise to shrug off:** TE has only 26 total picks in the entire draft — the fewest of any position. Early in a point-in-time replay, Layer 4's "actual $/VOR realized so far" for TE is often computed from just 1-2 picks, an inherently volatile small-sample estimate that then gets applied to every remaining TE valuation. TE had the *best* static accuracy to start (correlation 0.98) — the dynamic adjustment is actively hurting an already well-calibrated position because its own input signal is too thin to trust yet.
+
+**Well-motivated candidate for future work, not implemented now:** shrink the position-specific inflation index toward the league-wide index when few picks have happened at that position yet (e.g. weight by sample size), rather than trusting a 1-2-pick ratio as fully reliable. This is a concrete, evidence-backed idea — but still only supported by one draft's worth of replay data, so it stays a documented candidate (see IDEAS.md) rather than something to build now, consistent with the project's shrinkage philosophy above.
+
+**Conclusion, per ROADMAP's own test ("if the complicated model doesn't beat the simple ones, don't use it"):** the full model earns its complexity for RB and WR. For QB, the added layers are neutral — harmless but not curative. For TE, they currently hurt. This is exactly the kind of honest, position-specific signal Phase 10 was meant to surface, and it's more useful than a single aggregate "the model works" verdict would have been.
 
 ## Explicitly deferred (see [IDEAS.md](IDEAS.md))
 

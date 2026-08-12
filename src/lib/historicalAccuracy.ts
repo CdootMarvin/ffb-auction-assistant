@@ -24,7 +24,7 @@ export interface PlayerAccuracy {
   pctError: number
 }
 
-interface AccuracySummary {
+export interface AccuracySummary {
   count: number
   mae: number
   mape: number
@@ -39,7 +39,7 @@ export interface HistoricalAccuracyResult {
   excludedPickCount: number
 }
 
-function pearsonCorrelation(xs: number[], ys: number[]): number | null {
+export function pearsonCorrelation(xs: number[], ys: number[]): number | null {
   const n = xs.length
   if (n < 2) return null
   const meanX = xs.reduce((a, b) => a + b, 0) / n

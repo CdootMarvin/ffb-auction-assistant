@@ -147,11 +147,15 @@ Goal: make the model better without overfitting. Bring in historical auction res
 
 **Findings (real, not anecdotal):** overall correlation 0.91, MAE $4.56 across all 192 picks. RB and TE show excellent correlation (0.97, 0.98) — good validation the Layer 1 market-clearing FLEX fix is working. **QB is the clear weak point** (correlation 0.89, MAE $8.21) — but the aggregate number undersells what's actually happening: drilling into individual picks showed the top 6 QBs sold for a mean of **+$7.50** over prediction (each individually $19-$31 over) while the remaining 21 sold for a mean of **-$2.62** under prediction. Not a uniform bias — a scarcity **cliff** at the startable/non-startable QB boundary that smooth points-based VOR doesn't capture. See [MODELING.md](MODELING.md) for the full pick-by-pick breakdown. Not patched — this needs a shape change to the QB value curve near the cliff, not a single tunable constant, and one data point isn't enough to design that responsibly. Flagged as a precise, evidence-based target for revisiting once the actual 2026 draft provides a second data point.
 
-## Phase 10 — Backtesting
+## Phase 10 — Backtesting — **DONE (2026-08-12)**
 
 Goal: prove whether this actually works, as honestly as the data allows. Replay historical auctions pick-by-pick, predicting at each point without hindsight, and compare predicted vs. actual price. Compare the full model against simpler baselines (static cheat sheet, simple inflation-only, VOR alone) — if the complicated model doesn't beat the simple ones, don't use the complicated model.
 
 **Honest limitation:** with only one clean pre-keeper historical draft realistically available for this league, this is not a rigorous held-out validation (Phase 9 calibration and Phase 10 testing would draw on the same limited data) — treat this phase as a sanity/regression check rather than proof, and don't let a good backtest result on thin data justify more model complexity than the data can actually support.
+
+- [x] Point-in-time replay engine (`src/lib/backtest.ts`) — at each pick, only picks strictly before it are known, no hindsight. Three tiers compared: static baseline, +league-wide inflation, full model.
+
+**Results, reported honestly rather than spun positive:** full model beats static on all 3 metrics (MAE $4.34 vs $4.56, MAPE 48% vs 52%, correlation 0.93 vs 0.91) but doesn't cleanly beat the simpler inflation-only tier (which had *better* correlation, 0.96, though much worse MAPE, 72%) — not a clean "more complexity wins" story. Per-position breakdown is the real payoff: full model clearly helps RB and WR, is roughly neutral for QB (doesn't fix the Layer 2 cliff — expected, that needs a shape change not a scaling one), and **actively hurts TE** — TE had the best static accuracy (correlation 0.98) and got worse (0.97) with the dynamic adjustment applied, traced to TE's thin sample size (only 26 picks total in the draft) making the position-inflation estimate unreliable early in a replay. See [MODELING.md](MODELING.md) for full numbers and the well-motivated (but not-yet-implemented) sample-size-weighting fix this suggests, logged in [IDEAS.md](IDEAS.md).
 
 ## Phase 11 — Draft-Day Polish
 
