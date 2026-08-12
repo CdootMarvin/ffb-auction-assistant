@@ -35,20 +35,36 @@ if player has no last-season auction price (e.g. waiver pickup, in-season trade,
 
 **Calibration caution:** historical drafts available for this league all predate keepers. The league's economics this year (total spendable money, positional distribution) will genuinely differ from that history. Weight historical calibration constants more toward the neutral default than usual for this season specifically — see the shrinkage approach below.
 
-## Layer 1 — Projected points → VOR
+## Layer 1 — Projected points → VOR — **implemented 2026-08-12** (`src/lib/scoring.ts`, `src/lib/valuation.ts`)
 
-Value Over Replacement: projected fantasy points minus a replacement-level baseline. Replacement level is derived from the league's actual roster requirements (team count × starting slots at each position, including flex allocation), not a fixed guess — pull real settings from the Sleeper league object rather than hardcoding.
+**Projected points:** computed from Sleeper's per-stat season projections dot-producted against this league's actual `scoring_settings` (`computeProjectedPoints`) — not Sleeper's generic `pts_ppr`/`pts_half_ppr`/`pts_std` fields, which don't reflect this league's custom rules (e.g. a 0.5/reception TE premium, non-standard yardage weights). Supported categories: `pass_yd`, `pass_td`, `pass_int`, `pass_2pt`, `rush_yd`, `rush_td`, `rush_2pt`, `rec`, `rec_yd`, `rec_td`, `rec_2pt`, `fum_lost`, `bonus_rec_te`.
 
-## Layer 2 — Static (pre-draft) dollar value
+**Known, deliberate limitation:** this league's scoring also includes several *per-game threshold* bonuses (`bonus_pass_yd_300/400`, `bonus_rec_yd_100/200`, `bonus_rush_yd_100/200`) and `pass_sack`. These cannot be derived from a season-total projection — you can't tell from "3650 projected passing yards over 17 games" whether any single game crossed 300. Excluded rather than approximated. Revisit only if Phase 10 backtesting shows this materially skews rankings (it's a small point contribution for most players).
 
-Scale each player's VOR against the league's total spendable auction pool:
+**Value Over Replacement:** projected points minus a replacement-level baseline, computed per position from this league's actual roster requirements (`parseRosterRequirements`, `computeReplacementLevels`) — not a fixed guess.
+
+**Replacement rank convention (a documented assumption, not a measured fact):**
+```
+QB replacement rank = teams x (starting QB slots + SUPER_FLEX slots)   // SUPER_FLEX assumed 100% QB
+RB/WR/TE replacement rank = teams x starting slots at that position
+                             + round(teams x FLEX slots x flex_share)  // flex_share: RB 0.5, WR 0.4, TE 0.1
+```
+Treating SUPER_FLEX as fully QB is standard for 2QB/SuperFlex leagues (this league is one) — QB scarcity typically makes a "replacement" QB2 worth more than a marginal RB/WR/TE flex play. The FLEX split (RB 50% / WR 40% / TE 10%) is a rough, round-number default, not derived from this league's data. Both are adjustable — see the QB scarcity finding below for why this specific convention may need revisiting.
+
+**Replacement level itself is computed over the full player pool** (including kept players) — it represents "what a typical startable/waiver-level player is worth," which doesn't change based on which specific players happen to be kept. Keepers only affect the *auction-eligible pool and spendable money* (Layer 0 / Layer 2), not the replacement-level baseline itself.
+
+## Layer 2 — Static (pre-draft) dollar value — **implemented 2026-08-12**
+
+Scale each non-kept player's VOR against the league's keeper-adjusted spendable auction pool:
 
 ```
-spendable pool = (teams * budget per team) - (total remaining bench/reserve slots league-wide * $1 minimum bid)
-player static $ = (player VOR / total VOR of rosterable players) * spendable pool
+spendable pool = sum(effective_team_budget) - sum(remaining_roster_slots) * $1
+player static $ = max(1, round((player VOR / total VOR of available non-kept players) * spendable pool))
 ```
 
-This reproduces a normal preseason cheat sheet and is the "pre-draft value" baseline shown to the user.
+`effective_team_budget` and `remaining_roster_slots` are the Layer 0 post-keeper numbers, not the naive full-budget/full-slot numbers. Players at or below replacement level (VOR clamped to 0) get the $1 floor rather than a share of the pool. This reproduces a keeper-adjusted preseason cheat sheet and is the "pre-draft value" baseline shown to the user. Verified internally consistent: for this league, $2400 total budget − $92 total keeper cost − $186 reserved (1/remaining slot) = $2122 spendable pool, matching the app's computed output exactly.
+
+**Empirical finding worth flagging, not yet acted on (2026-08-12):** comparing this baseline's output against last season's *actual* sale prices in this same league, elite QBs sold for roughly the same price as elite RBs last year (Allen $61, Lamar $65, Daniels $61, vs. Bijan $63, Saquon $60) — but this baseline puts RB1 (Gibbs, $68) well above QB1 (Allen, $48). This is a known, documented weakness of points-based VOR in 2QB/SuperFlex formats: passing-yardage points give even a replacement-level QB24 a high floor, compressing the QB1→QB24 point *spread* relative to a position like RB, even though real 2QB-league demand (needing ~24 startable QBs out of a league of ~32) creates a scarcity cliff a smooth points curve doesn't capture. **Deliberately not patched with an arbitrary QB premium** — that would be tuning to one year's anecdata, exactly what the overfitting caution below warns against. Flagged as a concrete, evidence-based candidate for Phase 9/10 to actually test (e.g., a QB-specific scarcity adjustment, or a different replacement-rank convention for QB) rather than guessed at now.
 
 ## Layer 3 — Dynamic re-scaling (inflation index)
 

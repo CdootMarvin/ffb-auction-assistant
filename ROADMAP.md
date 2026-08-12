@@ -58,17 +58,19 @@ Note: this phase retrieves keeper *data* (who's kept). Computing keeper *cost* a
 
 Success: you can watch your actual auction happening inside the application. Confirmed.
 
-## Phase 2 — Baseline Player Values
+## Phase 2 — Baseline Player Values — **DONE (2026-08-12)**
 
 Goal: establish the "before the auction" value. Don't try to be clever yet — a solid static baseline first.
 
-- Player projections (Sleeper's undocumented projections endpoint, primary; CSV import fallback).
-- Fantasy points → Value Over Replacement, with replacement levels derived from this league's actual roster requirements (2QB/SuperFlex changes QB replacement level significantly — don't use single-QB assumptions).
-- Convert VOR into auction dollars against the league's spendable pool.
-- **Keeper-adjusted starting state** ([MODELING.md](MODELING.md) Layer 0): apply each team's keeper cost (last season's price × 1.2, rounded to nearest dollar, min $5, or flat $5 with no prior price) against their budget, remove kept players from the pool, and subtract the roster slots they fill — *before* computing the displayed baseline. There is no clean pre-keeper baseline this year; this step is not optional.
-- Account for league settings throughout (budget, roster requirements, 2QB/SuperFlex).
+- [x] Player projections — Sleeper's undocumented projections endpoint (`src/lib/sleeperApi.ts` `getProjections`, localStorage-cached, ~2.9MB for QB/RB/WR/TE). CSV fallback not built (not needed — primary path confirmed working); remains a documented fallback option only.
+- [x] Fantasy points → Value Over Replacement (`src/lib/scoring.ts`, `src/lib/valuation.ts`), replacement levels derived from this league's real roster requirements including its 2QB/SuperFlex structure — see [MODELING.md](MODELING.md) Layer 1 for the exact convention used.
+- [x] Convert VOR into auction dollars against the league's spendable pool ([MODELING.md](MODELING.md) Layer 2).
+- [x] **Keeper-adjusted starting state** ([MODELING.md](MODELING.md) Layer 0) — implemented and verified: keeper costs computed from real prior-season prices, subtracted from each team's effective budget, kept players and their roster slots removed before the baseline is computed.
+- [x] Account for league settings throughout — budget, roster requirements, and scoring all read from the real league/draft objects, not hardcoded.
 
-**Sanity-check backtest (lightweight, not the full Phase 10 suite):** once this baseline exists, spot-check it against last season's actual sale prices (same league, pre-keeper era) — does the static VOR ranking roughly track actual relative prices? This is a cheap early warning if the VOR/replacement-level math is fundamentally off, before any dynamic machinery gets built on top of it.
+**Verified in-browser** against the real current league: math is internally consistent (spendable pool $2,122 = $2,400 total budget − $92 total keeper cost − $186 reserved slots, matches exactly), 102 players computed above replacement level, sensible-looking value ordering.
+
+**Sanity-check backtest — done, and it surfaced something real:** compared against last season's actual sale prices in this league. Most of the ordering looks reasonable, but elite QBs come out significantly cheaper relative to elite RBs than the real market bore out last year (see the flagged finding in [MODELING.md](MODELING.md) Layer 2). Not patched now — logged as a concrete, evidence-based item for Phase 9/10, not guessed at with an unvalidated multiplier.
 
 ## Phase 3 — League Economic Model
 

@@ -16,6 +16,7 @@ export interface SleeperLeague {
     max_keepers: number
     reserve_slots: number
   }
+  scoring_settings: Record<string, number>
 }
 
 export interface SleeperUser {
@@ -45,6 +46,17 @@ export interface SleeperDraft {
     teams: number
   }
   metadata: { scoring_type?: string } | null
+}
+
+export interface SleeperProjection {
+  player_id: string
+  player: {
+    position: string
+    first_name: string
+    last_name: string
+    team: string | null
+  } | null
+  stats: Record<string, number>
 }
 
 export interface SleeperPick {

@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react'
-import { getDraft, getLeague, getLeagueRosters, getLeagueUsers } from './lib/sleeperApi'
+import {
+  getDraft,
+  getLeague,
+  getLeagueRosters,
+  getLeagueUsers,
+  getPreviousSeasonPrices,
+  getProjections,
+} from './lib/sleeperApi'
 import type { SleeperDraft, SleeperLeague, SleeperRoster, SleeperUser } from './lib/sleeperTypes'
 import { useDraftPicks } from './hooks/useDraftPicks'
+import { computeBaseline, type BaselineResult } from './lib/valuation'
 
 const LEAGUE_ID_STORAGE_KEY = 'ffb-auction-assistant:league-id'
 
@@ -12,7 +20,8 @@ interface LeagueData {
   draft: SleeperDraft
 }
 
-function teamNameForRoster(roster: SleeperRoster, users: SleeperUser[]): string {
+function teamNameForRoster(roster: SleeperRoster | undefined, users: SleeperUser[]): string {
+  if (!roster) return 'Unknown'
   const owner = users.find((u) => u.user_id === roster.owner_id)
   return owner?.metadata?.team_name || owner?.display_name || `Roster ${roster.roster_id}`
 }
@@ -25,6 +34,10 @@ function App() {
   const [data, setData] = useState<LeagueData | null>(null)
   const [loading, setLoading] = useState(false)
   const [connectError, setConnectError] = useState<string | null>(null)
+
+  const [baseline, setBaseline] = useState<BaselineResult | null>(null)
+  const [baselineLoading, setBaselineLoading] = useState(false)
+  const [baselineError, setBaselineError] = useState<string | null>(null)
 
   const { picks, error: picksError } = useDraftPicks(data?.draft.draft_id ?? null)
 
@@ -61,6 +74,46 @@ function App() {
     }
   }, [connectedLeagueId])
 
+  useEffect(() => {
+    if (!data) return
+    let cancelled = false
+
+    async function loadBaseline() {
+      setBaselineLoading(true)
+      setBaselineError(null)
+      try {
+        const d = data as LeagueData
+        const [projections, previousPrices] = await Promise.all([
+          getProjections(d.league.season),
+          getPreviousSeasonPrices(d.league.previous_league_id),
+        ])
+        if (cancelled) return
+        const result = computeBaseline(
+          projections,
+          d.league.scoring_settings,
+          d.rosters,
+          d.league.roster_positions,
+          d.league.total_rosters,
+          d.draft.settings.budget,
+          previousPrices,
+        )
+        if (!cancelled) setBaseline(result)
+      } catch (e) {
+        if (!cancelled) {
+          setBaseline(null)
+          setBaselineError(e instanceof Error ? e.message : 'Failed to compute baseline values')
+        }
+      } finally {
+        if (!cancelled) setBaselineLoading(false)
+      }
+    }
+
+    loadBaseline()
+    return () => {
+      cancelled = true
+    }
+  }, [data])
+
   function handleConnect(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = leagueIdInput.trim()
@@ -70,6 +123,12 @@ function App() {
   }
 
   const sortedPicks = [...picks].sort((a, b) => b.pick_no - a.pick_no)
+  const rosterById = new Map(data?.rosters.map((r) => [r.roster_id, r]) ?? [])
+
+  const keptPlayers = baseline?.players.filter((p) => p.isKept) ?? []
+  const availablePlayers = baseline
+    ? [...baseline.players].filter((p) => !p.isKept && p.vor > 0).sort((a, b) => b.dollarValue - a.dollarValue)
+    : []
 
   return (
     <main>
@@ -124,6 +183,79 @@ function App() {
             </table>
           </section>
 
+          {baselineLoading && <p>Computing baseline player values…</p>}
+          {baselineError && <p className="error">{baselineError}</p>}
+
+          {baseline && (
+            <>
+              <section>
+                <h3>Keepers &amp; Team Budgets</h3>
+                <p>
+                  League spendable pool (after keeper costs and roster-slot reserves): $
+                  {baseline.spendablePool}
+                </p>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Team</th>
+                      <th>Keepers</th>
+                      <th>Keeper Cost</th>
+                      <th>Effective Budget</th>
+                      <th>Remaining Slots</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {baseline.teamBudgets.map((tb) => {
+                      const roster = rosterById.get(tb.rosterId)
+                      const teamKeepers = keptPlayers.filter((p) => p.keptByRosterId === tb.rosterId)
+                      return (
+                        <tr key={tb.rosterId}>
+                          <td>{teamNameForRoster(roster, data.users)}</td>
+                          <td>
+                            {teamKeepers.length === 0
+                              ? '—'
+                              : teamKeepers.map((p) => p.name).join(', ')}
+                          </td>
+                          <td>${tb.keeperCostTotal}</td>
+                          <td>${tb.effectiveBudget}</td>
+                          <td>{tb.remainingSlots}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </section>
+
+              <section>
+                <h3>Baseline Player Values ({availablePlayers.length} above replacement)</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Pos</th>
+                      <th>NFL Team</th>
+                      <th>Proj. Pts</th>
+                      <th>VOR</th>
+                      <th>$ Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {availablePlayers.map((p) => (
+                      <tr key={p.playerId}>
+                        <td>{p.name}</td>
+                        <td>{p.position}</td>
+                        <td>{p.nflTeam}</td>
+                        <td>{p.points.toFixed(1)}</td>
+                        <td>{p.vor.toFixed(1)}</td>
+                        <td>${p.dollarValue}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            </>
+          )}
+
           <section>
             <h3>Live Picks ({picks.length})</h3>
             {picksError && <p className="error">{picksError}</p>}
@@ -143,7 +275,7 @@ function App() {
                 </thead>
                 <tbody>
                   {sortedPicks.map((pick) => {
-                    const roster = data.rosters.find((r) => r.roster_id === pick.roster_id)
+                    const roster = rosterById.get(pick.roster_id)
                     return (
                       <tr key={pick.pick_no}>
                         <td>{pick.pick_no}</td>
@@ -153,7 +285,7 @@ function App() {
                         <td>{pick.metadata?.position}</td>
                         <td>{pick.metadata?.team}</td>
                         <td>${pick.metadata?.amount ?? '—'}</td>
-                        <td>{roster ? teamNameForRoster(roster, data.users) : pick.roster_id}</td>
+                        <td>{teamNameForRoster(roster, data.users)}</td>
                       </tr>
                     )
                   })}
