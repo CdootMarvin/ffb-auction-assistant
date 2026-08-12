@@ -20,16 +20,16 @@ Phase 11   "Make it bulletproof for draft day."
 
 Decided the product vision, compared browser/desktop/hybrid architectures, designed the layered valuation approach, addressed overfitting, defined how ranges should work, produced the initial project documents. See [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) for the record of decisions made.
 
-## Phase 0 — Project Setup — **IN PROGRESS**
+## Phase 0 — Project Setup — **DONE (2026-08-12)**
 
 Goal: create the skeleton.
 
 - [x] Create project documentation (`PROJECT_SPEC.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `DESIGN_DECISIONS.md`, `MODELING.md`, `CONTRIBUTING.md`, `IDEAS.md`).
-- [ ] Create GitHub repository.
-- [ ] Set up chosen technology stack (Vite + React + TypeScript).
-- [ ] Set up development environment.
-- [ ] Set up deployment (GitHub Pages).
-- [ ] Get a trivial version running end-to-end (proves the $0 pipeline works before any real feature is built on top of it).
+- [x] Create GitHub repository — public, [github.com/CdootMarvin/ffb-auction-assistant](https://github.com/CdootMarvin/ffb-auction-assistant).
+- [x] Set up chosen technology stack (Vite + React + TypeScript).
+- [x] Set up development environment (`npm run dev`; project-local `ffb-dev` launch config added to the shared `C:\Claude\.claude\launch.json` alongside the unrelated `claymont-estates-test` entry, additive only).
+- [x] Set up deployment (GitHub Actions → GitHub Pages, deploys on every push to `main`).
+- [x] Get a trivial version running end-to-end — confirmed live at [cdootmarvin.github.io/ffb-auction-assistant](https://cdootmarvin.github.io/ffb-auction-assistant/), verified in-browser (correct title, no console errors, current build's asset hashes served, not a stale cache).
 
 **Already validated empirically ahead of schedule** (normally Phase 1 groundwork, pulled forward during the Phase -1 discussion since real league data was available): Sleeper API confirmed reachable server-side; real league settings, roster requirements, budget, and draft info confirmed for league `1389362840074199040`; undocumented projections endpoint confirmed working with real data; keeper mechanism and cost formula confirmed against the real league. See [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) for details.
 
