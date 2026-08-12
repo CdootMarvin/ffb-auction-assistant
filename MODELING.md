@@ -142,12 +142,28 @@ No separate "aggressive ceiling" beyond the range's upper bound (PROJECT_SPEC's 
 
 All of the above are round-number heuristic constants, not calibrated against real data — label this range explicitly as heuristic in the UI, don't imply simulated statistical confidence it doesn't have. Prime candidates for Phase 9/10 calibration once real draft-day outcomes exist.
 
-## Historical calibration (avoiding overfitting)
+## Historical calibration (avoiding overfitting) — **implemented 2026-08-12** (`src/lib/historicalAccuracy.ts`)
 
 - The Layer 1–5 formula must produce reasonable output with **zero** historical data — that's the always-available baseline.
 - Historical drafts (pulled from Sleeper via `previous_league_id` chain, if available) are used only to tune a small number of interpretable constants (e.g. how strongly bidder count moves price), never to fit an opaque model.
 - Use shrinkage: blend the league-specific observed pattern with a neutral default, weighted by how much history exists. 1-2 drafts should barely move the constant away from default.
 - Do not attempt to fit a predictive model (regression, ML) on this data — the sample size cannot support it and it would break explainability.
+
+**How much history actually exists — checked, not assumed:** this league's `previous_league_id` chain goes back to 2023, but only the 2025 season is structurally comparable — 2023 and 2024 both used a single-QB format with K/DEF roster slots (14 total slots), while 2025 switched to the current 2QB/SuperFlex, no-K/DEF, 16-slot format the same as 2026. Mixing incompatible formats into "historical data" would corrupt the comparison, not calibrate it. `sameRosterFormat()` checks this explicitly and excludes non-matching seasons rather than silently including them. Net result: genuinely **one** usable historical draft (2025) — which strongly reinforces the shrinkage principle above; there's no realistic way one draft justifies moving a constant far from its default.
+
+**What was actually run:** applied the static baseline methodology (Layers 1-2 — VOR, replacement level, dollar conversion) to 2025's real projections and league settings, and compared the resulting predicted dollar values against that season's actual sale prices (192 real picks). Results:
+
+| Position | Picks | MAE | MAPE | Correlation |
+|---|---|---|---|---|
+| Overall | 192 | $4.56 | 52% | 0.91 |
+| QB | 33 | $8.21 | 58% | **0.89** |
+| RB | 62 | $3.81 | 70% | 0.97 |
+| WR | 71 | $4.68 | 38% | 0.91 |
+| TE | 26 | $1.42 | 40% | **0.98** |
+
+All 192 picks matched to a projected player (no exclusions). RB and TE show excellent correlation (0.97, 0.98) with low MAE — good quantitative validation that the market-clearing FLEX fix (Layer 1) is working well. **QB is the clear weak point**: lowest correlation (0.89) and highest MAE ($8.21) of any position. This *quantitatively confirms*, with real full-draft evidence rather than eyeballing the top 10, the QB-undervaluation concern already flagged in Layer 2 and Layer 6.
+
+**Decision: not patched.** This isn't really a "constant to nudge via shrinkage" situation the way the FLEX split was — the residual QB weakness looks structural (likely the SUPER_FLEX-as-100%-QB replacement convention, or the inherent points-based-VOR compression already documented in Layer 1), not a single tunable number. One data point isn't enough to redesign that convention responsibly. Documented here as a stronger, quantified candidate for revisiting once real 2026 draft-day data provides a second data point — see Phase 9/10 status in ROADMAP.md.
 
 ## Evaluation / backtesting
 

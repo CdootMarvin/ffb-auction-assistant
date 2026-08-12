@@ -135,11 +135,17 @@ Goal: make the information useful during a frantic auction. Answer "should I bid
 
 **Verified in-browser:** selected Jahmyr Gibbs via search, decision card showed $61 current value / $61 expected / $37-$85 range / 12 bidders / NEUTRAL — matching the detailed table exactly — with correctly-reasoned explanation text ("12 of 12 teams still need a starting RB, with 25 comparable RBs left worth drafting").
 
-## Phase 9 — Historical Data & Calibration
+## Phase 9 — Historical Data & Calibration — **DONE (2026-08-12)**
 
 Goal: make the model better without overfitting. Bring in historical auction results (this league's prior season, via `previous_league_id`) to investigate prediction accuracy, position-specific systematic behavior, and persistent league tendencies — blended with the general model via shrinkage, not trained from scratch on 1-2 drafts. See [MODELING.md](MODELING.md) calibration section.
 
 **Caveat specific to this league:** all available historical data predates keepers. This season's economics will genuinely differ. Lean harder toward the neutral default than the shrinkage approach would normally suggest for an established non-keeper league.
+
+- [x] Checked how much comparable history actually exists, rather than assuming the whole `previous_league_id` chain was usable: 2023 and 2024 used a completely different roster format (single-QB, K/DEF, 14 slots) than 2025/2026's 2QB/SuperFlex 16-slot format. Only 2025 is structurally comparable — `sameRosterFormat()` excludes the rest explicitly.
+- [x] Ran the static baseline methodology against 2025's real projections/settings and compared to that season's actual 192 sale prices (`src/lib/historicalAccuracy.ts`, "Historical Model Accuracy" section in the app).
+- [x] **Decision: no constants changed.** One historical draft doesn't justify shrinkage-adjusting anything meaningfully away from documented defaults, consistent with the anti-overfitting principle above.
+
+**Findings (real, not anecdotal):** overall correlation 0.91, MAE $4.56 across all 192 picks. RB and TE show excellent correlation (0.97, 0.98) — good validation the Layer 1 market-clearing FLEX fix is working. **QB is the clear weak point** (correlation 0.89, MAE $8.21, both worst of any position) — this quantitatively confirms, with full-draft evidence, the QB-undervaluation concern flagged qualitatively back in Phase 2/6. Not patched — looks structural (the SUPER_FLEX-as-100%-QB convention, or inherent points-based-VOR compression), not a single tunable number one data point could responsibly fix. Flagged as a stronger candidate for revisiting once the actual 2026 draft provides a second real data point.
 
 ## Phase 10 — Backtesting
 

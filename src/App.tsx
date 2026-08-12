@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   getDraft,
+  getDraftPicks,
   getLeague,
   getLeagueRosters,
   getLeagueUsers,
@@ -15,6 +16,11 @@ import { computePositionScarcity, computeTeamPositionNeeds } from './lib/scarcit
 import { computeRealisticBidders } from './lib/bidders'
 import { computeDynamicValues } from './lib/dynamicValue'
 import { generateExplanation } from './lib/explanation'
+import {
+  computeHistoricalAccuracy,
+  sameRosterFormat,
+  type HistoricalAccuracyResult,
+} from './lib/historicalAccuracy'
 
 const LEAGUE_ID_STORAGE_KEY = 'ffb-auction-assistant:league-id'
 
@@ -46,6 +52,10 @@ function App() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
+
+  const [historicalAccuracy, setHistoricalAccuracy] = useState<HistoricalAccuracyResult | null>(null)
+  const [historicalAccuracyLoading, setHistoricalAccuracyLoading] = useState(false)
+  const [historicalAccuracyNote, setHistoricalAccuracyNote] = useState<string | null>(null)
 
   const { picks, error: picksError } = useDraftPicks(data?.draft.draft_id ?? null)
 
@@ -117,6 +127,67 @@ function App() {
     }
 
     loadBaseline()
+    return () => {
+      cancelled = true
+    }
+  }, [data])
+
+  useEffect(() => {
+    if (!data || !data.league.previous_league_id) {
+      setHistoricalAccuracy(null)
+      setHistoricalAccuracyNote(null)
+      return
+    }
+    let cancelled = false
+
+    async function loadHistoricalAccuracy() {
+      setHistoricalAccuracyLoading(true)
+      setHistoricalAccuracyNote(null)
+      setHistoricalAccuracy(null)
+      try {
+        const d = data as LeagueData
+        const historicalLeague = await getLeague(d.league.previous_league_id as string)
+        if (cancelled) return
+
+        if (!sameRosterFormat(d.league.roster_positions, historicalLeague.roster_positions)) {
+          setHistoricalAccuracyNote(
+            `Prior season (${historicalLeague.season}) used a different roster format ` +
+              `(${historicalLeague.roster_positions.join(', ')}) than this season - not structurally ` +
+              `comparable, excluded rather than mixed in.`,
+          )
+          return
+        }
+
+        const [historicalRosters, historicalDraft] = await Promise.all([
+          getLeagueRosters(historicalLeague.league_id),
+          getDraft(historicalLeague.draft_id),
+        ])
+        const [historicalProjections, historicalPicks] = await Promise.all([
+          getProjections(historicalLeague.season),
+          getDraftPicks(historicalLeague.draft_id),
+        ])
+        if (cancelled) return
+
+        const result = computeHistoricalAccuracy(
+          historicalLeague,
+          historicalRosters,
+          historicalProjections,
+          historicalDraft.settings.budget,
+          historicalPicks,
+        )
+        if (!cancelled) setHistoricalAccuracy(result)
+      } catch (e) {
+        if (!cancelled) {
+          setHistoricalAccuracyNote(
+            e instanceof Error ? e.message : 'Failed to compute historical accuracy',
+          )
+        }
+      } finally {
+        if (!cancelled) setHistoricalAccuracyLoading(false)
+      }
+    }
+
+    loadHistoricalAccuracy()
     return () => {
       cancelled = true
     }
@@ -469,6 +540,61 @@ function App() {
                     })}
                   </tbody>
                 </table>
+              </section>
+
+              <section>
+                <h3>Historical Model Accuracy</h3>
+                {historicalAccuracyLoading && <p>Checking prior seasons…</p>}
+                {historicalAccuracyNote && <p>{historicalAccuracyNote}</p>}
+                {historicalAccuracy && (
+                  <>
+                    <p>
+                      Static baseline methodology (Layers 1-2) applied to the {historicalAccuracy.season} season's
+                      real projections and league settings, compared against actual sale prices from that
+                      completed draft. {historicalAccuracy.overall.count} of{' '}
+                      {historicalAccuracy.overall.count + historicalAccuracy.excludedPickCount} picks matched to a
+                      projected player.
+                    </p>
+                    <p>
+                      Overall: mean absolute error ${historicalAccuracy.overall.mae.toFixed(2)}, mean absolute % error{' '}
+                      {(historicalAccuracy.overall.mape * 100).toFixed(0)}%, correlation{' '}
+                      {historicalAccuracy.overall.correlation != null
+                        ? historicalAccuracy.overall.correlation.toFixed(2)
+                        : '—'}
+                    </p>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Position</th>
+                          <th>Picks</th>
+                          <th>MAE</th>
+                          <th>MAPE</th>
+                          <th>Correlation</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(['QB', 'RB', 'WR', 'TE'] as const).map((pos) => {
+                          const s = historicalAccuracy.byPosition[pos]
+                          return (
+                            <tr key={pos}>
+                              <td>{pos}</td>
+                              <td>{s.count}</td>
+                              <td>${s.mae.toFixed(2)}</td>
+                              <td>{(s.mape * 100).toFixed(0)}%</td>
+                              <td>{s.correlation != null ? s.correlation.toFixed(2) : '—'}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                    <p>
+                      Only one structurally comparable historical draft exists for this league (prior seasons used a
+                      different roster format). Per MODELING.md's shrinkage approach, this isn't enough data to
+                      justify moving any heuristic constant away from its documented default — findings here are
+                      informative, not a basis for recalibration yet.
+                    </p>
+                  </>
+                )}
               </section>
             </>
           )}
