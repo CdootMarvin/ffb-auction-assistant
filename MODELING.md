@@ -161,9 +161,20 @@ All of the above are round-number heuristic constants, not calibrated against re
 | WR | 71 | $4.68 | 38% | 0.91 |
 | TE | 26 | $1.42 | 40% | **0.98** |
 
-All 192 picks matched to a projected player (no exclusions). RB and TE show excellent correlation (0.97, 0.98) with low MAE — good quantitative validation that the market-clearing FLEX fix (Layer 1) is working well. **QB is the clear weak point**: lowest correlation (0.89) and highest MAE ($8.21) of any position. This *quantitatively confirms*, with real full-draft evidence rather than eyeballing the top 10, the QB-undervaluation concern already flagged in Layer 2 and Layer 6.
+All 192 picks matched to a projected player (no exclusions). RB and TE show excellent correlation (0.97, 0.98) with low MAE — good quantitative validation that the market-clearing FLEX fix (Layer 1) is working well. **QB is the clear weak point**: lowest correlation (0.89) and highest MAE ($8.21) of any position.
 
-**Decision: not patched.** This isn't really a "constant to nudge via shrinkage" situation the way the FLEX split was — the residual QB weakness looks structural (likely the SUPER_FLEX-as-100%-QB replacement convention, or the inherent points-based-VOR compression already documented in Layer 1), not a single tunable number. One data point isn't enough to redesign that convention responsibly. Documented here as a stronger, quantified candidate for revisiting once real 2026 draft-day data provides a second data point — see Phase 9/10 status in ROADMAP.md.
+**Drilled into the QB numbers pick-by-pick, not just the summary stats — this revealed the finding is sharper than "QBs are undervalued."** Mean signed error (actual − predicted) across all 33 QB picks is only +$1.06, which looks like a small, unremarkable bias — but that average is flattening two opposite effects:
+
+| Tier | n | Mean (actual − predicted) |
+|---|---|---|
+| Top 6 QBs by predicted value | 6 | **+$7.50** |
+| Remaining 21 QBs | 21 | **−$2.62** |
+
+The top 6 (Lamar Jackson, Josh Allen, Jayden Daniels, Jalen Hurts, Joe Burrow, Patrick Mahomes) *all* sold for $19-$31 more than predicted individually. Below that tier, most QBs sold for at or below prediction, several cratering toward the $1 floor while the model still expected real value (e.g. Trevor Lawrence and Jared Goff both predicted ~$16-17, actually sold for $6 and $5).
+
+This confirms the specific mechanism hypothesized back in Layer 1/2, not just the general direction: real 2QB-league demand creates a sharp scarcity **cliff** at the boundary of "clearly startable" QBs, which smooth points-based VOR doesn't capture — it's not a uniform undervaluation, it's a shape problem concentrated entirely at the tier boundary. A single "shift QB values up" adjustment would be the wrong fix; it would overcorrect the bottom tier, which is already priced about right (or slightly high).
+
+**Decision: still not patched.** This isn't a "constant to nudge via shrinkage" the way the FLEX split was — the fix here would need to change the *shape* of the QB value curve near the replacement cliff (e.g. a steeper drop-off right at the startable/non-startable boundary), not a single tunable number, and one data point isn't enough to design that responsibly. Documented here as a precise, evidence-based target for Phase 9/10 revisit once real 2026 draft-day data provides a second data point — see ROADMAP.md.
 
 ## Evaluation / backtesting
 
