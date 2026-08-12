@@ -79,9 +79,22 @@ inflation index = (remaining spendable pool / remaining rosterable VOR) / (origi
 
 **Direction, confirmed against PROJECT_SPEC's own example:** if the first five players sell for ~$100 against a $60 baseline, the league has burned a large amount of money relative to how much VOR those five players actually represented — less money remains, relative to remaining talent, than at the start. `remaining $/VOR` falls below `original $/VOR`, inflation index drops below 1, and remaining players read as *cheaper* than baseline. This is the same direction PROJECT_SPEC's own example describes ("the league has spent a huge amount of money early... the $60 value may no longer be appropriate" — implicitly cheaper, since less money is chasing the rest). Conversely, if early players go for less than baseline, more money remains relative to remaining talent, and the index rises above 1 (remaining players read as more expensive) — matching PROJECT_SPEC's second example directly. Confirmed at the two extremes (0 and 192 picks); not yet observed against a genuinely in-progress draft, since the real 2026 draft hasn't started. Re-verify once it does.
 
-## Layer 4 — Positional scarcity adjustment
+## Layer 4 — Positional scarcity & team needs — **implemented 2026-08-12** (`src/lib/scarcity.ts`)
 
-Same inflation index calculation, computed **per position** instead of league-wide, since money-to-talent ratios diverge by position as a draft progresses (e.g. RBs drying up faster than WRs). Apply the positional index on top of (or in place of, needs empirical testing) the league-wide index for that player's position.
+**Positional inflation index — different framing than originally sketched here, for a concrete reason.** The original plan called for "the same inflation index calculation, computed per position." That doesn't actually work as written: Layer 3's index compares *remaining* money against *remaining* VOR, but money isn't earmarked by position — a team's whole budget can go to any position, so there's no real "remaining $ for RBs specifically" to use as a numerator.
+
+What's implemented instead: for each position, compare the **actual $/VOR realized by live picks at that position so far** against the single global $/VOR ratio the entire baseline was built from (`baseline.spendablePool / baseline.totalAvailableVor` — every position shares this same ratio by construction, since Layer 2 assigns dollar value proportional to VOR with one universal constant, so there's no positional pricing built into the static baseline at all). If a position's actual realized $/VOR is running above that global ratio, it's pricing at a premium; below, a discount. Keeper costs are excluded from this (they're set by formula, not the market, and would contaminate the signal).
+
+```
+position $/VOR realized = (sum of prices paid for that position's live picks) / (sum of VOR of those same picked players)
+position inflation index = position $/VOR realized / (spendablePool / totalAvailableVor)
+```
+
+**Verified against the completed historical draft:** RB inflation 1.39 (RBs went for a real premium — a well-known, widely-discussed real-market phenomenon, good sign the signal is picking up something real), WR 0.90 (ran at a discount, consistent with WR depth), QB 1.09, TE 1.06. Directionally sensible across the board.
+
+**Team needs:** counts each team's players per position (keepers + live picks) against that position's dedicated (non-flex) starter requirement — e.g. a team with 1 RB still "needs a starter" at RB since the requirement is 2. This is a headcount estimate, not a real lineup assignment (Sleeper doesn't assign drafted players to specific roster slots during a live auction — that happens later in-season), and doesn't try to account for FLEX/SUPER_FLEX coverage, only dedicated starter slots. **Verified indirectly against real keeper data:** TE showed 11 of 12 teams still needing a starter (not 12), correctly reflecting that one team's second keeper is also a TE (2 kept TEs ≥ the 1-TE requirement) — matches what the raw keeper data implies without that being separately checked going in.
+
+**Known simplification, not yet addressed:** late-draft $1 bench-filler picks (below replacement level, ~0 VOR) still count toward `spentAtPosition` but contribute ~0 to `vorDraftedAtPosition`, which will push the realized $/VOR ratio up mechanically as a draft nears its end, independent of any real scarcity. This is arguably a real signal too (late-draft $1 compression is a known, real fantasy-auction phenomenon), not obviously a bug — but it means the index should be read cautiously very late in a draft. Not fixed now; revisit if it turns out misleading during Phase 8 UI design or Phase 10 backtesting.
 
 ## Layer 5 — Realistic bidder count
 

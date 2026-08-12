@@ -9,8 +9,9 @@ import {
 } from './lib/sleeperApi'
 import type { SleeperDraft, SleeperLeague, SleeperRoster, SleeperUser } from './lib/sleeperTypes'
 import { useDraftPicks } from './hooks/useDraftPicks'
-import { computeBaseline, type BaselineResult } from './lib/valuation'
+import { computeBaseline, parseRosterRequirements, type BaselineResult } from './lib/valuation'
 import { computeLeagueEconomy } from './lib/economy'
+import { computePositionScarcity, computeTeamPositionNeeds } from './lib/scarcity'
 
 const LEAGUE_ID_STORAGE_KEY = 'ffb-auction-assistant:league-id'
 
@@ -128,6 +129,14 @@ function App() {
 
   const economy = baseline ? computeLeagueEconomy(baseline, picks) : null
   const teamEconomyByRoster = new Map(economy?.teamEconomy.map((t) => [t.rosterId, t]) ?? [])
+
+  const rosterReq =
+    data != null ? parseRosterRequirements(data.league.roster_positions, data.league.total_rosters) : null
+  const teamNeeds =
+    data != null && baseline != null && rosterReq != null
+      ? computeTeamPositionNeeds(data.rosters, baseline, picks, rosterReq)
+      : []
+  const positionScarcity = baseline ? computePositionScarcity(baseline, picks, teamNeeds) : []
 
   const keptPlayers = baseline?.players.filter((p) => p.isKept) ?? []
   const availablePlayers = baseline
@@ -285,6 +294,34 @@ function App() {
                   </table>
                 </section>
               )}
+
+              <section>
+                <h3>Positional Scarcity</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Position</th>
+                      <th>Remaining Players</th>
+                      <th>Remaining VOR</th>
+                      <th>Teams Needing Starter</th>
+                      <th>Actual $/VOR So Far</th>
+                      <th>Position Inflation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {positionScarcity.map((ps) => (
+                      <tr key={ps.position}>
+                        <td>{ps.position}</td>
+                        <td>{ps.remainingPlayerCount}</td>
+                        <td>{ps.remainingVor.toFixed(1)}</td>
+                        <td>{ps.teamsNeedingStarter}</td>
+                        <td>{ps.actualDollarPerVor != null ? ps.actualDollarPerVor.toFixed(2) : '—'}</td>
+                        <td>{ps.positionInflationIndex != null ? ps.positionInflationIndex.toFixed(2) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
 
               <section>
                 <h3>Baseline Player Values ({availablePlayers.length} above replacement)</h3>

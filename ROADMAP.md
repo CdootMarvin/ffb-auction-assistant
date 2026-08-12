@@ -86,13 +86,17 @@ Goal: understand what has happened to the auction economy. After every purchase,
 
 Answers: "What does the auction economy look like right now?"
 
-## Phase 4 — Positional Scarcity & Team Needs
+## Phase 4 — Positional Scarcity & Team Needs — **DONE (2026-08-12)**
 
 Goal: understand supply and demand.
 
-- Teams still needing QB/RB/WR/TE/etc. (2QB/SuperFlex means QB need is structurally higher than a single-QB league).
-- Remaining players at each position, weighted by quality (remaining VOR at that position, not raw headcount — a position with 5 remaining scrubs is not the same scarcity picture as 5 remaining starters).
-- Roster slots available, position-specific scarcity index ([MODELING.md](MODELING.md) Layer 4), team-specific needs.
+- [x] Teams still needing QB/RB/WR/TE/etc. (`src/lib/scarcity.ts` `computeTeamPositionNeeds` — headcount vs. dedicated starter requirement, keepers + live picks).
+- [x] Remaining players at each position, weighted by quality (remaining VOR, from `computePositionScarcity`, not raw headcount).
+- [x] Position-specific scarcity index ([MODELING.md](MODELING.md) Layer 4 — reworked from the original per-position-inflation sketch, which didn't actually work since money isn't earmarked by position; replaced with actual-$/VOR-realized-so-far vs. the global baseline ratio).
+
+**Verified against real data:** the completed historical draft shows directionally sensible position pricing (RB 1.39x premium, WR 0.90x discount, QB 1.09x, TE 1.06x) — RB running hot and WR running cool matches well-known real fantasy-market behavior. Team-needs counts verified indirectly against real keeper data (TE correctly shows 11/12 teams needing a starter, reflecting one team's second keeper also being a TE).
+
+**Known simplification, documented not fixed:** late-draft $1 bench picks mechanically push the position pricing ratio up since they add to $ spent but ~0 to VOR drafted — plausibly a real signal (well-known $1 compression phenomenon) rather than a bug, but should be read cautiously very late in a draft.
 
 Answers: "Which positions are becoming expensive, and why?"
 
