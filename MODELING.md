@@ -96,14 +96,21 @@ position inflation index = position $/VOR realized / (spendablePool / totalAvail
 
 **Known simplification, not yet addressed:** late-draft $1 bench-filler picks (below replacement level, ~0 VOR) still count toward `spentAtPosition` but contribute ~0 to `vorDraftedAtPosition`, which will push the realized $/VOR ratio up mechanically as a draft nears its end, independent of any real scarcity. This is arguably a real signal too (late-draft $1 compression is a known, real fantasy-auction phenomenon), not obviously a bug — but it means the index should be read cautiously very late in a draft. Not fixed now; revisit if it turns out misleading during Phase 8 UI design or Phase 10 backtesting.
 
-## Layer 5 — Realistic bidder count
+## Layer 5 — Realistic bidder count — **implemented 2026-08-12** (`src/lib/bidders.ts`)
 
-Rule-based, not statistical (not enough data to fit a model, and rules stay explainable). A team counts as a realistic bidder for a player if:
-- The team still needs that position (open starting slot, or a clear roster gap).
-- The team has enough remaining budget to bid competitively (not just technically enough — enough after reserving $1 per remaining unfilled slot besides this one).
-- The team has enough remaining roster slots that committing a large bid here doesn't strand them elsewhere.
+Rule-based, not statistical (not enough data to fit a model, and rules stay explainable). For every available player, a team counts as a realistic bidder if:
 
-Output: a bidder count per player. Used to adjust the point estimate and to widen/narrow the range (more realistic bidders → price pushed up and range widens toward the ceiling).
+1. **The team still needs that position** — reuses Phase 4's `needsStarter` check (dedicated starter slots not yet filled by keepers + live picks). A team that's already filled its starters at a position is excluded, matching the original brief's example directly: "if every team already has its starting QB except me, a QB may be much cheaper for me."
+2. **The team has enough remaining budget to bid competitively** — not just *some* money left, but enough to reach the player's baseline dollar value after reserving $1 for every other remaining roster slot (the standard auction "max possible bid" formula: `remainingBudget - (remainingSlots - 1) * 1`). This single formula also captures the third original criterion ("enough roster slots that a big bid doesn't strand them elsewhere") — a team down to its last slot or two sees its max bid shrink accordingly, without a separate rule needed.
+
+```
+maxBid(team) = remainingBudget - (remainingSlots - 1) * $1   // 0 if remainingSlots <= 0
+realistic bidder = needsStarter[position] AND maxBid >= player's baseline dollar value
+```
+
+The competitive-bid threshold (baseline dollar value, not some fraction of it) is a round-number default — this is the best available "expected price" reference until Phase 6 produces a true dynamic value; revisit if it turns out too strict/loose once real bidding data exists.
+
+**Verified against the real pre-draft league:** at zero picks made, budget isn't yet a binding constraint (every team has $136+ remaining), so realistic bidder counts for top players closely track "teams needing starter" directly — RB/WR show 12/12 (everyone needs one, no money constraint yet), QB shows 10 (exactly matching Phase 4's QB teams-needing-starter count), TE shows 11 (matching Phase 4's TE count). This is expected at the very start of a draft; the budget constraint should start meaningfully diverging bidder counts from raw need-counts once real money gets spent — worth re-checking once the actual 2026 draft is underway.
 
 ## Layer 6 — Range, not just a point estimate
 

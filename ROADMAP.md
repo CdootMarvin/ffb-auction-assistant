@@ -100,11 +100,14 @@ Goal: understand supply and demand.
 
 Answers: "Which positions are becoming expensive, and why?"
 
-## Phase 5 — Realistic Bidder Model
+## Phase 5 — Realistic Bidder Model — **DONE (2026-08-12)**
 
 Goal: figure out who can actually compete for a player. Rule-based, not statistical ([MODELING.md](MODELING.md) Layer 5) — not enough historical data for a fitted model, and rules stay explainable.
 
-For every remaining player, estimate which teams need that position, can afford it, have competing roster priorities, and how many legitimate bidders remain.
+- [x] For every remaining player, estimate which teams need that position (`src/lib/bidders.ts`, reuses Phase 4's `needsStarter`), can afford it competitively (max-bid formula against the player's baseline value), and how many legitimate bidders remain. The "enough roster slots left" criterion folds into the max-bid formula rather than needing a separate rule.
+- [x] Wired into the Baseline Player Values table as a "Realistic Bidders" column.
+
+**Verified against the real pre-draft league:** bidder counts for top players track "teams needing starter" closely at zero picks made (budget isn't binding yet) — QB shows exactly 10, TE exactly 11, matching Phase 4's counts. Budget constraints should meaningfully diverge bidder counts from raw need-counts as real money gets spent; not yet observed against an in-progress draft.
 
 Moves us from "this player is worth $40" to "this player is worth $40, but only two teams are likely to bid aggressively, so the expected price is probably lower."
 

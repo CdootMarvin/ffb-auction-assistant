@@ -12,6 +12,7 @@ import { useDraftPicks } from './hooks/useDraftPicks'
 import { computeBaseline, parseRosterRequirements, type BaselineResult } from './lib/valuation'
 import { computeLeagueEconomy } from './lib/economy'
 import { computePositionScarcity, computeTeamPositionNeeds } from './lib/scarcity'
+import { computeRealisticBidders } from './lib/bidders'
 
 const LEAGUE_ID_STORAGE_KEY = 'ffb-auction-assistant:league-id'
 
@@ -137,6 +138,11 @@ function App() {
       ? computeTeamPositionNeeds(data.rosters, baseline, picks, rosterReq)
       : []
   const positionScarcity = baseline ? computePositionScarcity(baseline, picks, teamNeeds) : []
+
+  const bidders =
+    baseline && economy
+      ? computeRealisticBidders(baseline.players, economy.draftedPlayerIds, teamEconomyByRoster, teamNeeds)
+      : new Map()
 
   const keptPlayers = baseline?.players.filter((p) => p.isKept) ?? []
   const availablePlayers = baseline
@@ -334,6 +340,7 @@ function App() {
                       <th>Proj. Pts</th>
                       <th>VOR</th>
                       <th>$ Value</th>
+                      <th>Realistic Bidders</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -345,6 +352,7 @@ function App() {
                         <td>{p.points.toFixed(1)}</td>
                         <td>{p.vor.toFixed(1)}</td>
                         <td>${p.dollarValue}</td>
+                        <td>{bidders.get(p.playerId)?.realisticBidderCount ?? 0}</td>
                       </tr>
                     ))}
                   </tbody>
