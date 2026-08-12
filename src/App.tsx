@@ -13,6 +13,7 @@ import { computeBaseline, parseRosterRequirements, type BaselineResult } from '.
 import { computeLeagueEconomy } from './lib/economy'
 import { computePositionScarcity, computeTeamPositionNeeds } from './lib/scarcity'
 import { computeRealisticBidders } from './lib/bidders'
+import { computeDynamicValues } from './lib/dynamicValue'
 
 const LEAGUE_ID_STORAGE_KEY = 'ffb-auction-assistant:league-id'
 
@@ -144,11 +145,20 @@ function App() {
       ? computeRealisticBidders(baseline.players, economy.draftedPlayerIds, teamEconomyByRoster, teamNeeds)
       : new Map()
 
+  const dynamicValues =
+    baseline && economy
+      ? computeDynamicValues(baseline.players, economy.draftedPlayerIds, economy, positionScarcity, bidders)
+      : new Map()
+
   const keptPlayers = baseline?.players.filter((p) => p.isKept) ?? []
   const availablePlayers = baseline
     ? [...baseline.players]
         .filter((p) => !p.isKept && p.vor > 0 && !economy?.draftedPlayerIds.has(p.playerId))
-        .sort((a, b) => b.dollarValue - a.dollarValue)
+        .sort(
+          (a, b) =>
+            (dynamicValues.get(b.playerId)?.currentValue ?? b.dollarValue) -
+            (dynamicValues.get(a.playerId)?.currentValue ?? a.dollarValue),
+        )
     : []
 
   return (
@@ -330,31 +340,40 @@ function App() {
               </section>
 
               <section>
-                <h3>Baseline Player Values ({availablePlayers.length} above replacement)</h3>
+                <h3>Player Values ({availablePlayers.length} above replacement)</h3>
                 <table>
                   <thead>
                     <tr>
                       <th>Player</th>
                       <th>Pos</th>
                       <th>NFL Team</th>
-                      <th>Proj. Pts</th>
-                      <th>VOR</th>
-                      <th>$ Value</th>
-                      <th>Realistic Bidders</th>
+                      <th>Pre-Draft Value</th>
+                      <th>Current Value</th>
+                      <th>Expected Price</th>
+                      <th>Range</th>
+                      <th>Bidders</th>
+                      <th>Recommendation</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {availablePlayers.map((p) => (
-                      <tr key={p.playerId}>
-                        <td>{p.name}</td>
-                        <td>{p.position}</td>
-                        <td>{p.nflTeam}</td>
-                        <td>{p.points.toFixed(1)}</td>
-                        <td>{p.vor.toFixed(1)}</td>
-                        <td>${p.dollarValue}</td>
-                        <td>{bidders.get(p.playerId)?.realisticBidderCount ?? 0}</td>
-                      </tr>
-                    ))}
+                    {availablePlayers.map((p) => {
+                      const dv = dynamicValues.get(p.playerId)
+                      return (
+                        <tr key={p.playerId}>
+                          <td>{p.name}</td>
+                          <td>{p.position}</td>
+                          <td>{p.nflTeam}</td>
+                          <td>${p.dollarValue}</td>
+                          <td>${dv?.currentValue ?? p.dollarValue}</td>
+                          <td>${dv?.expectedPrice ?? p.dollarValue}</td>
+                          <td>
+                            {dv ? `$${dv.rangeLow}–$${dv.rangeHigh}` : '—'}
+                          </td>
+                          <td>{dv?.realisticBidderCount ?? 0}</td>
+                          <td>{dv?.recommendation ?? '—'}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </section>

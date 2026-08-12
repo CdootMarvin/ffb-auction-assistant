@@ -111,9 +111,11 @@ Goal: figure out who can actually compete for a player. Rule-based, not statisti
 
 Moves us from "this player is worth $40" to "this player is worth $40, but only two teams are likely to bid aggressively, so the expected price is probably lower."
 
-## Phase 6 — Dynamic Auction Values
+## Phase 6 — Dynamic Auction Values — **DONE (2026-08-12)**
 
-Goal: combine everything into a live value. Baseline (Phase 2) + league economics (Phase 3) + positional scarcity (Phase 4) + team needs + realistic bidders (Phase 5) → current value, expected auction price, recommended maximum, buy/neutral/overpay zones. This is the heart of the product.
+Goal: combine everything into a live value. Baseline (Phase 2) + league economics (Phase 3) + positional scarcity (Phase 4) + team needs + realistic bidders (Phase 5) → current value, expected auction price, recommended maximum, buy/neutral/overpay zones ([MODELING.md](MODELING.md) Layer 6, `src/lib/dynamicValue.ts`). This is the heart of the product.
+
+**Real bug caught and fixed during verification:** the first version used a fixed "2 bidders = neutral" reference for the price-adjustment factor, which broke completely at the start of a draft (every player showed OVERPAY, since realistic bidder counts sit high for everyone when budgets are fresh — no differentiation, a useless signal). Fixed by comparing each player's bidder count against the median for currently-available players at that position, not a fixed number. Verified: correctly shows uniform NEUTRAL at zero picks made (genuinely no differentiating signal exists yet, confirmed this is real not a bug — every player in a position really does have the same bidder count this early), and range math checks out exactly by hand (e.g. $61 value, 12 bidders → spread 0.40 → range $37-$85, confirmed). Not yet observed against a genuinely varied mid-draft state — only inferred from already-validated component layers; worth a spot check once the real 2026 draft is underway.
 
 ## Phase 7 — Auction Simulation
 

@@ -112,13 +112,35 @@ The competitive-bid threshold (baseline dollar value, not some fraction of it) i
 
 **Verified against the real pre-draft league:** at zero picks made, budget isn't yet a binding constraint (every team has $136+ remaining), so realistic bidder counts for top players closely track "teams needing starter" directly — RB/WR show 12/12 (everyone needs one, no money constraint yet), QB shows 10 (exactly matching Phase 4's QB teams-needing-starter count), TE shows 11 (matching Phase 4's TE count). This is expected at the very start of a draft; the budget constraint should start meaningfully diverging bidder counts from raw need-counts once real money gets spent — worth re-checking once the actual 2026 draft is underway.
 
-## Layer 6 — Range, not just a point estimate
+## Layer 6 — Combining everything into a live value — **implemented 2026-08-12** (`src/lib/dynamicValue.ts`)
 
-V1 approach: heuristic range, not simulation (see [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) for why Monte Carlo is deferred). Range width driven by:
-- Realistic bidder count (more bidders → wider, higher-skewed range).
-- Observed historical prediction error for players in that value tier, once backtest data exists.
+Combines every prior layer into current value, expected price, a range, a recommended max, and a buy/neutral/overpay call, per player.
 
-Label this range explicitly as heuristic in the UI — don't imply simulated statistical confidence it doesn't have.
+**Current value** = static baseline (Layer 2) × an inflation index. Uses Layer 4's *position-specific* inflation index when available, falling back to Layer 3's league-wide index for positions with no live picks yet — **in place of**, not multiplied with, resolving the "on top of, or in place of" question this section originally left open. Multiplying both risked double-counting the same underlying signal; the position-specific number is the more targeted, directly-observed one for that exact position.
+
+**Expected price** = current value × a bidder-count price factor.
+
+**Real bug caught and fixed during verification, worth documenting in full:** the first version treated a *fixed* "2 realistic bidders = neutral" reference point, on the theory that auction price roughly converges near the 2nd-highest true valuation. This completely broke in practice: at the start of a draft, every team has a fresh budget and open roster spots, so realistic bidder counts sit high (10-12) for nearly *every* player — a fixed low reference flagged almost the entire 102-player available pool as OVERPAY, which isn't a useful signal (it doesn't differentiate between players, it just restates "this is early in the draft"). Fixed by comparing each player's bidder count against a **per-position reference: the median bidder count among currently-available players at that position**, not a fixed number. This correctly produces uniform NEUTRAL across the board at zero picks made (verified: every player within a position genuinely has the *same* bidder count that early, since budget isn't remotely a binding constraint yet at $200 vs. even a $61 top player) — real differentiation should emerge once picks start happening and team budgets/needs diverge from each other. This hasn't been directly observed against a genuinely varied mid-draft state yet (only inferred from already-validated component logic); worth a spot check once the real 2026 draft is underway.
+
+```
+bidder price factor = clamp(1 + 0.05 * (bidderCount - positionMedianBidderCount), 0.6, 1.4)
+expected price = round(currentValue * bidder price factor)
+```
+
+**Recommended max** = current value itself — don't pay more than what the player is actually worth, regardless of what the market is expected to do. Matches PROJECT_SPEC's original worked example directly (recommended max = "current model value").
+
+**Recommendation**: BUY if expected price is >5% below current value (market likely underpricing relative to your own valuation), OVERPAY if >5% above, else NEUTRAL.
+
+**Range** — heuristic, not simulation (see [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) for why Monte Carlo is deferred). Unlike the price factor above, range width uses the player's **absolute** bidder count, not the position-relative one — more parties competing means more outcome uncertainty regardless of whether that count happens to be typical for the position right now.
+
+```
+spread = 0.15 + min(0.03 * bidderCount, 0.25)
+range = [round(expectedPrice * (1 - spread)), round(expectedPrice * (1 + spread))]
+```
+
+No separate "aggressive ceiling" beyond the range's upper bound (PROJECT_SPEC's original example had one) — merged into range-high for V1 simplicity.
+
+All of the above are round-number heuristic constants, not calibrated against real data — label this range explicitly as heuristic in the UI, don't imply simulated statistical confidence it doesn't have. Prime candidates for Phase 9/10 calibration once real draft-day outcomes exist.
 
 ## Historical calibration (avoiding overfitting)
 
