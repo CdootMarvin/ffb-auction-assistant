@@ -120,7 +120,40 @@ The competitive-bid threshold (baseline dollar value, not some fraction of it) i
 
 Combines every prior layer into current value, expected price, a range, a recommended max, and a buy/neutral/overpay call, per player.
 
-**Current value** = static baseline (Layer 2) × an inflation index. Uses Layer 4's *position-specific* inflation index when available, falling back to Layer 3's league-wide index for positions with no live picks yet — **in place of**, not multiplied with, resolving the "on top of, or in place of" question this section originally left open. Multiplying both risked double-counting the same underlying signal; the position-specific number is the more targeted, directly-observed one for that exact position.
+**Current value** = static baseline (Layer 2) × a combined inflation index. This went through two real design revisions, both prompted by the user during live mock-draft testing, both checked against the Phase 10 backtest rather than adopted on reasoning alone.
+
+**Revision 1 (original, 2026-08-12):** position-specific index *in place of* league-wide when available, falling back to league-wide only for positions with zero live picks. Reasoning at the time: multiplying both risked double-counting the same signal.
+
+**Revision 2 (2026-08-12, same day, superseded above):** during live mock-draft testing, user pointed out a real flaw: an all-or-nothing switch means a single outlier sale (e.g. a $60-baseline RB1 selling for $30) makes the model treat *every remaining player at that position* as uniformly discounted — but that $30 in "savings" doesn't vanish, it's still in the pool and will get spent on *something*, which is a league-wide signal the switch was throwing away the moment any position had even one sale. Redesigned as **multiplicative, with league-wide always active**, and the position term dampened by how much real data supports it:
+
+```
+weight = salesAtPosition / (salesAtPosition + 4)
+combinedIndex = leagueIndex * positionIndex^weight   // positionIndex^weight -> 1 (neutral) as weight -> 0
+```
+
+At 1 sale the position term is barely expressed (0.8^0.2≈0.96); at 4 sales half-expressed; at 16+ sales it converges to a plain multiply (`leagueIndex * positionIndex`), which is also exactly the simple formula the user proposed for the "lots of data" case. League-wide's influence never fully vanishes at any finite sample size, addressing the user's core objection directly.
+
+**Checked against the Phase 10 backtest, not just reasoned about — and the result was genuinely mixed, not a clean win:**
+
+| | Revision 1 (in-place-of) | Revision 2 (multiplicative) |
+|---|---|---|
+| Overall MAE / MAPE / Corr | $4.34 / 48% / 0.93 | $3.85 / 67% / 0.96 |
+| QB MAE / Corr | $8.45 / 0.90 | **$5.30 / 0.96** (clear improvement) |
+| WR MAE / Corr | $4.18 / 0.93 | **$2.86 / 0.97** (clear improvement) |
+| RB MAE / MAPE | $3.16 / 58% | $4.32 / **105%** (regression) |
+| TE MAE / MAPE | $2.38 / 43% | $3.62 / 72% (regression) |
+
+Diagnosis: RB and TE both carry a lot of near-replacement bench players sitting at the $1-2 floor. With league-wide now *always* multiplying in (this draft's league-wide index ran hot most of the way through), those already-cheap players get nudged up a little — trivial in absolute dollars, but a huge *percentage* swing on a $1-2 baseline, which is exactly what inflated MAPE without meaningfully hurting MAE.
+
+**Revision 3, the fix actually shipped:** skip the dynamic multiplier entirely for near-replacement players (baseline value ≤ **$5**) — for these, `currentValue = expectedPrice = baseline value` unchanged, on the theory that real bidding for deep bench/waiver-tier players is governed by the $1-minimum-bid mechanic, not broader market inflation. Tested thresholds of $3 and $5 against the backtest before settling on $5 (diminishing returns beyond that — see commit history/session notes, not re-litigated here):
+
+| | Revision 2 (no exclusion) | + exclude ≤$3 | + exclude ≤$5 (shipped) |
+|---|---|---|---|
+| Overall MAE / MAPE / Corr | $3.85 / 67% / 0.96 | $3.82 / 56% / 0.96 | **$3.80 / 53% / 0.96** |
+| RB MAPE | 105% | 81% | **78%** |
+| TE MAPE | 72% | 63% | **56%** |
+
+Final result vs. the original Revision 1: MAE and correlation are better across the board (overall MAE $4.34→$3.80, correlation 0.93→0.96), overall MAPE is close to parity (48%→53%), QB and WR are clearly better, and RB/TE — while still not fully back to their Revision 1 numbers — are far better than the intermediate multiplicative-only version. **Stopped tuning the threshold deliberately at $5** rather than continuing to chase RB/TE parity: each further nudge fits more specifically to this one 2025 draft, which is the exact overfitting risk this project has tried to avoid everywhere else. Verified this doesn't just look good on paper: sanity-checked against the live mock draft too, values move by small, plausible amounts rather than swinging wildly.
 
 **Expected price** = current value × a bidder-count price factor.
 

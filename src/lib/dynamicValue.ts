@@ -38,6 +38,33 @@ function bidderPriceFactor(bidderCount: number, referenceBidderCount: number): n
   return Math.max(0.6, Math.min(1.4, 1 + diff * 0.05))
 }
 
+// Combines position-specific and league-wide inflation multiplicatively, with
+// league-wide ALWAYS active (not diluted away as position data accumulates) and
+// the position term dampened by how many real sales support it:
+//
+//   combinedIndex = leagueIndex * positionIndex^weight,  weight = n/(n+4)
+//
+// Why multiplicative with league-wide always-on: league-wide reflects real,
+// ongoing money-conservation pressure across the WHOLE draft ("that $30 a
+// discounted RB1 didn't cost has to be spent somewhere") that doesn't go away
+// just because one position has built up a lot of its own sales history - it
+// should keep compounding with the position-specific signal, not be replaced
+// by it. Why the exponent is dampened by sample size: an UNDAMPENED multiply
+// (weight always 1) would let a single outlier sale swing a position's price
+// exactly as hard as a well-established trend would. Raising positionIndex to
+// a fractional power pulls it toward neutral (1.0) when little real data
+// supports it, and lets it fully express itself as more sales accumulate -
+// converging to a plain multiply (leagueIndex * positionIndex) once well
+// supported, without overreacting to n=1. K=4 is a round, documented default
+// (not fitted): at 1 sale the position term is barely expressed (0.8^0.2≈0.96),
+// at 4 sales half-expressed (0.8^0.5≈0.89), at 16 sales mostly expressed
+// (0.8^0.8≈0.83). See MODELING.md Layer 6.
+const POSITION_TRUST_K = 4
+
+function positionWeight(salesCount: number): number {
+  return salesCount / (salesCount + POSITION_TRUST_K)
+}
+
 function medianOf(values: number[]): number {
   if (values.length === 0) return 0
   const sorted = [...values].sort((a, b) => a - b)
@@ -77,11 +104,42 @@ export function computeDynamicValues(
   )
 
   for (const player of availablePlayers) {
-    // Position-specific inflation in place of league-wide when available (more
-    // targeted signal), falling back to league-wide for positions with no live
-    // picks yet. See MODELING.md Layer 6 for why these aren't multiplied together.
-    const positionIndex = scarcityByPosition.get(player.position)?.positionInflationIndex
-    const combinedIndex = positionIndex ?? economy.inflationIndex ?? 1
+    // Skip the dynamic multiplier entirely for near-replacement players
+    // (baseline value <= $5). Real bidding for deep bench/waiver-tier players is
+    // governed by the $1-minimum-bid mechanic and roster-filling necessity, not
+    // broader market inflation - nudging a $1-2 baseline player up a dollar
+    // doesn't reflect anything real, it just creates a large PERCENTAGE error
+    // the moment actual price stays at the floor. $5 chosen after backtesting
+    // $3 and $5 against Phase 10's historical draft - $5 meaningfully reduced
+    // RB/TE's inflated MAPE without hurting MAE/correlation; stopped tuning
+    // further deliberately to avoid overfitting to one draft. See MODELING.md
+    // Layer 6 for the full before/after numbers.
+    const NEAR_REPLACEMENT_THRESHOLD = 5
+    if (player.dollarValue <= NEAR_REPLACEMENT_THRESHOLD) {
+      result.set(player.playerId, {
+        playerId: player.playerId,
+        currentValue: player.dollarValue,
+        expectedPrice: player.dollarValue,
+        rangeLow: Math.max(1, player.dollarValue - 1),
+        rangeHigh: player.dollarValue + 1,
+        recommendedMax: player.dollarValue,
+        recommendation: 'NEUTRAL',
+        realisticBidderCount: bidders.get(player.playerId)?.realisticBidderCount ?? 0,
+      })
+      continue
+    }
+
+    // combinedIndex = leagueIndex * positionIndex^weight - see positionWeight
+    // above for the full reasoning. League-wide always applies; the position
+    // term is dampened toward neutral (1.0) until enough real sales support it.
+    const positionScarcityInfo = scarcityByPosition.get(player.position)
+    const positionIndex = positionScarcityInfo?.positionInflationIndex
+    const leagueIndex = economy.inflationIndex ?? 1
+    let combinedIndex = leagueIndex
+    if (positionIndex != null && positionIndex > 0) {
+      const weight = positionWeight(positionScarcityInfo?.salesCount ?? 0)
+      combinedIndex = leagueIndex * Math.pow(positionIndex, weight)
+    }
     const currentValue = Math.max(1, Math.round(player.dollarValue * combinedIndex))
 
     const bidderCount = bidders.get(player.playerId)?.realisticBidderCount ?? 0

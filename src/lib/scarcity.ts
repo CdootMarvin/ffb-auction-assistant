@@ -61,6 +61,10 @@ export interface PositionScarcity {
   teamsNeedingStarter: number
   actualDollarPerVor: number | null
   positionInflationIndex: number | null
+  // Live sales at this position so far (excludes keepers - see actualDollarPerVor
+  // above). Exposed so Layer 6 can weight how much to trust positionInflationIndex
+  // vs the league-wide index by sample size, rather than an all-or-nothing switch.
+  salesCount: number
 }
 
 // actualDollarPerVor uses real prices paid for players actually drafted at this
@@ -110,6 +114,7 @@ export function computePositionScarcity(
       teamsNeedingStarter: teamNeeds.filter((t) => t.needsStarter[position]).length,
       actualDollarPerVor,
       positionInflationIndex,
+      salesCount: draftedAtPosition.length,
     }
   })
 }
