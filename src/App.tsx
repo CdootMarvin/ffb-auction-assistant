@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import './App.css'
 import {
   getDraft,
   getDraftPicks,
@@ -373,50 +374,60 @@ function App() {
 
   return (
     <main>
-      <h1>Fantasy Football Auction Assistant</h1>
+      <header className="app-header">
+        <span className="eyebrow">Live Auction Valuation</span>
+        <h1>Fantasy Football Auction Assistant</h1>
+        <p className="tagline">Dynamic player values that react to your actual draft, not a static cheat sheet.</p>
+      </header>
 
-      <form onSubmit={handleConnect} className="connect-form">
-        <label htmlFor="league-id">Sleeper League ID</label>
-        <input
-          id="league-id"
-          type="text"
-          value={leagueIdInput}
-          onChange={(e) => setLeagueIdInput(e.target.value)}
-          placeholder="e.g. 1389362840074199040"
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? 'Connecting…' : 'Connect'}
-        </button>
-      </form>
+      <section className="connect-card">
+        <form onSubmit={handleConnect} className="connect-form">
+          <label htmlFor="league-id">Sleeper League ID</label>
+          <input
+            id="league-id"
+            type="text"
+            value={leagueIdInput}
+            onChange={(e) => setLeagueIdInput(e.target.value)}
+            placeholder="e.g. 1389362840074199040"
+          />
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'Connecting…' : 'Connect'}
+          </button>
+        </form>
 
-      <form onSubmit={handleConnectMock} className="connect-form">
-        <label htmlFor="mock-draft-id">Or test against a Sleeper mock draft</label>
-        <input
-          id="mock-draft-id"
-          type="text"
-          value={mockDraftIdInput}
-          onChange={(e) => setMockDraftIdInput(e.target.value)}
-          placeholder="paste the mock draft URL or ID"
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? 'Connecting…' : 'Connect to Mock'}
-        </button>
-      </form>
-      <p className="hint">
-        Uses your real league's scoring/roster settings but no real keepers or team names - useful for
-        live-testing the app against real-time picks before draft day.
-      </p>
+        <div className="connect-divider">
+          <span>or</span>
+        </div>
+
+        <form onSubmit={handleConnectMock} className="connect-form">
+          <label htmlFor="mock-draft-id">Test against a Sleeper mock draft</label>
+          <input
+            id="mock-draft-id"
+            type="text"
+            value={mockDraftIdInput}
+            onChange={(e) => setMockDraftIdInput(e.target.value)}
+            placeholder="paste the mock draft URL or ID"
+          />
+          <button type="submit" className="btn-secondary" disabled={loading}>
+            {loading ? 'Connecting…' : 'Connect to Mock'}
+          </button>
+        </form>
+        <p className="hint">
+          Mock drafts use your real league's scoring/roster settings but no real keepers or team names —
+          useful for live-testing the app against real-time picks before draft day.
+        </p>
+      </section>
 
       {connectError && <p className="error">{connectError}</p>}
 
       {data && (
         <>
-          <section>
+          <section className="league-header">
             <h2>
-              {data.league.name} — {data.league.season}
+              {data.league.name} <span className="league-season">— {data.league.season}</span>
             </h2>
-            <p>
-              {data.league.total_rosters} teams · Draft status: {data.draft.status} ·{' '}
+            <p className="league-meta">
+              {data.league.total_rosters} teams · <span className="status-pill">{data.draft.status}</span> ·{' '}
               {data.draft.type} · ${data.draft.settings.budget} budget · {data.draft.settings.rounds}{' '}
               rounds
             </p>
@@ -507,7 +518,9 @@ function App() {
                       </div>
                       <div>
                         <span className="stat-label">Recommendation</span>
-                        <span className="stat-value">{selectedDv.recommendation}</span>
+                        <span className={`badge badge-${selectedDv.recommendation.toLowerCase()}`}>
+                          {selectedDv.recommendation}
+                        </span>
                       </div>
                     </div>
                     <ul className="explanation">
@@ -670,7 +683,15 @@ function App() {
                             {dv ? `$${dv.rangeLow}–$${dv.rangeHigh}` : '—'}
                           </td>
                           <td>{dv?.realisticBidderCount ?? 0}</td>
-                          <td>{dv?.recommendation ?? '—'}</td>
+                          <td>
+                            {dv ? (
+                              <span className={`badge badge-${dv.recommendation.toLowerCase()}`}>
+                                {dv.recommendation}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                         </tr>
                       )
                     })}

@@ -1,126 +1,506 @@
+:root {
+  --bg: #14110d;
+  --bg-elevated: #1c1812;
+  --bg-elevated-2: #241f18;
+  --bg-input: #100d0a;
+  --border: rgba(237, 224, 200, 0.1);
+  --border-strong: rgba(237, 224, 200, 0.2);
+  --text: #f0e6d2;
+  --text-muted: #a89a80;
+  --text-faint: #7d715c;
+
+  --gold: #c9a24a;
+  --gold-bright: #e0bd6a;
+  --gold-bg: rgba(201, 162, 74, 0.12);
+
+  --green: #8bb377;
+  --green-bg: rgba(139, 179, 119, 0.14);
+  --green-border: rgba(139, 179, 119, 0.45);
+
+  --red: #d17a6a;
+  --red-bg: rgba(209, 122, 106, 0.14);
+  --red-border: rgba(209, 122, 106, 0.45);
+
+  --neutral: #8a97a3;
+  --neutral-bg: rgba(138, 151, 163, 0.12);
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -16px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+main {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 2.5rem 1.75rem 5rem;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--text);
+}
+
+a {
+  color: var(--gold-bright);
+}
+
+/* ---------- Header ---------- */
+
+.app-header {
+  margin-bottom: 2.25rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.eyebrow {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gold);
+  margin-bottom: 0.6rem;
+}
+
+.app-header h1 {
+  font-size: clamp(1.7rem, 3.2vw, 2.3rem);
+}
+
+.tagline {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 1rem;
+  max-width: 56ch;
+}
+
+/* ---------- Panels (sections behave like cards throughout) ---------- */
+
+section {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-panel);
+}
+
+section h2 {
+  font-size: 1.4rem;
+}
+
+section h3 {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+section h4 {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin: 1.5rem 0 0.75rem;
+}
+
+section p {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.league-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.league-season {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.league-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.status-pill {
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gold-bright);
+  background: var(--gold-bg);
+  border: 1px solid rgba(201, 162, 74, 0.35);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+}
+
+/* ---------- Connect card ---------- */
+
+.connect-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1.25rem 2rem;
+}
+
 .connect-form {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 260px;
+  flex: 1 1 260px;
+}
+
+.connect-form label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.connect-form .btn-primary,
+.connect-form .btn-secondary {
+  align-self: flex-start;
+  margin-top: 0.15rem;
+}
+
+.connect-divider {
+  display: flex;
   align-items: center;
-  margin-bottom: 16px;
-}
-
-.connect-form input {
-  flex: 1;
-  max-width: 320px;
-}
-
-.error {
-  color: #d33;
+  align-self: stretch;
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .hint {
-  font-size: 0.85rem;
-  opacity: 0.7;
-  margin-top: -8px;
-  margin-bottom: 16px;
+  flex-basis: 100%;
+  margin: 0.25rem 0 0;
+  color: var(--text-faint);
+  font-size: 0.82rem;
+  max-width: 70ch;
 }
+
+@media (max-width: 700px) {
+  .connect-divider {
+    display: none;
+  }
+}
+
+/* ---------- Form controls ---------- */
+
+input[type='text'] {
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+input[type='text']:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+input[type='text']::placeholder {
+  color: var(--text-faint);
+}
+
+button {
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated-2);
+  color: var(--text);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #1a1508;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--gold-bright);
+  border-color: var(--gold-bright);
+  color: #1a1508;
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  color: var(--gold-bright);
+  border-color: var(--gold);
+}
+
+.error {
+  color: var(--red);
+}
+
+/* ---------- Tables ---------- */
 
 table {
   border-collapse: collapse;
   width: 100%;
-  margin-bottom: 24px;
+  margin: 0;
   display: block;
   overflow-x: auto;
   white-space: nowrap;
 }
 
-.picks-status {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+section table + h4 {
+  margin-top: 1.75rem;
 }
 
-th,
-td {
-  text-align: left;
-  padding: 4px 12px 4px 0;
-  border-bottom: 1px solid #444;
+section table + table {
+  margin-top: 1.5rem;
 }
+
+thead th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--text-faint);
+  padding: 0 1rem 0.6rem 0;
+  border-bottom: 1px solid var(--border-strong);
+  white-space: nowrap;
+}
+
+td {
+  padding: 0.5rem 1rem 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+tbody tr:hover {
+  background: rgba(237, 224, 200, 0.035);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ---------- Badges (BUY / NEUTRAL / OVERPAY) ---------- */
+
+.badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badge-buy {
+  color: var(--green);
+  background: var(--green-bg);
+  border: 1px solid var(--green-border);
+}
+
+.badge-overpay {
+  color: var(--red);
+  background: var(--red-bg);
+  border: 1px solid var(--red-border);
+}
+
+.badge-neutral {
+  color: var(--neutral);
+  background: var(--neutral-bg);
+  border: 1px solid rgba(138, 151, 163, 0.35);
+}
+
+/* ---------- Decision panel ---------- */
 
 .decision-panel {
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 24px;
+  border-color: var(--border-strong);
 }
 
 .player-search {
   width: 100%;
-  max-width: 400px;
-  padding: 8px;
+  max-width: 440px;
+  padding: 0.7rem 0.9rem;
   font-size: 1rem;
 }
 
 .search-matches {
   list-style: none;
   padding: 0;
-  margin: 8px 0 0;
+  margin: 0.6rem 0 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-width: 400px;
+  gap: 0.3rem;
+  max-width: 440px;
 }
 
 .search-matches button {
   width: 100%;
   text-align: left;
-  padding: 6px 10px;
+  font-weight: 500;
+  background: var(--bg-input);
 }
 
 .decision-card {
-  margin-top: 16px;
-  padding: 16px;
-  border-radius: 6px;
-  border: 2px solid #666;
+  margin-top: 1.25rem;
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--neutral);
 }
 
 .decision-card h4 {
-  margin-top: 0;
+  margin: 0 0 1rem;
+  color: var(--text);
+  font-size: 1.25rem;
 }
 
 .decision-card.recommendation-buy {
-  border-color: #2a7;
+  border-left-color: var(--green);
 }
 
 .decision-card.recommendation-overpay {
-  border-color: #d33;
+  border-left-color: var(--red);
 }
 
 .decision-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  margin: 12px 0;
+  gap: 1.5rem 2rem;
+  margin: 0 0 1.25rem;
 }
 
 .decision-stats > div {
   display: flex;
   flex-direction: column;
+  gap: 0.3rem;
   min-width: 90px;
 }
 
 .stat-label {
-  font-size: 0.8rem;
-  opacity: 0.7;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
 }
 
 .stat-value {
-  font-size: 1.3rem;
-  font-weight: bold;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 1.6rem;
+  font-weight: 500;
+  color: var(--text);
 }
 
 .explanation {
-  margin: 12px 0 0;
-  padding-left: 20px;
+  margin: 1rem 0 0;
+  padding: 1rem 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
 }
 
 .explanation li {
-  margin-bottom: 4px;
+  position: relative;
+  padding-left: 1.1rem;
+  margin-bottom: 0.55rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.explanation li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+/* ---------- Live picks status bar ---------- */
+
+.picks-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.picks-status button {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  section {
+    padding: 1.1rem 1.1rem;
+  }
+
+  .decision-stats {
+    gap: 1rem 1.5rem;
+  }
 }
