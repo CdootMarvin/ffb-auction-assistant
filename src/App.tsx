@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import {
   getDraft,
-  getDraftPicks,
   getLeague,
   getLeagueRosters,
   getLeagueUsers,
@@ -17,12 +16,11 @@ import { computePositionScarcity, computeTeamPositionNeeds } from './lib/scarcit
 import { computeRealisticBidders } from './lib/bidders'
 import { computeDynamicValues } from './lib/dynamicValue'
 import { generateExplanation } from './lib/explanation'
-import {
-  computeHistoricalAccuracy,
-  sameRosterFormat,
-  type HistoricalAccuracyResult,
-} from './lib/historicalAccuracy'
-import { runBacktest, type BacktestResult } from './lib/backtest'
+// Historical accuracy / backtest analysis (src/lib/historicalAccuracy.ts,
+// src/lib/backtest.ts) intentionally not wired into the live app - useful for
+// model validation work, not during an actual draft. Kept in the codebase for
+// future calibration checks (e.g. after the real 2026 draft happens), just not
+// run automatically or shown here. See ROADMAP.md Phase 9/10.
 
 const LEAGUE_ID_STORAGE_KEY = 'ffb-auction-assistant:league-id'
 
@@ -68,11 +66,6 @@ function App() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
-
-  const [historicalAccuracy, setHistoricalAccuracy] = useState<HistoricalAccuracyResult | null>(null)
-  const [historicalAccuracyLoading, setHistoricalAccuracyLoading] = useState(false)
-  const [historicalAccuracyNote, setHistoricalAccuracyNote] = useState<string | null>(null)
-  const [backtest, setBacktest] = useState<BacktestResult | null>(null)
 
   const {
     picks,
@@ -213,77 +206,6 @@ function App() {
     }
 
     loadBaseline()
-    return () => {
-      cancelled = true
-    }
-  }, [data])
-
-  useEffect(() => {
-    if (!data || !data.league.previous_league_id) {
-      setHistoricalAccuracy(null)
-      setHistoricalAccuracyNote(null)
-      return
-    }
-    let cancelled = false
-
-    async function loadHistoricalAccuracy() {
-      setHistoricalAccuracyLoading(true)
-      setHistoricalAccuracyNote(null)
-      setHistoricalAccuracy(null)
-      setBacktest(null)
-      try {
-        const d = data as LeagueData
-        const historicalLeague = await getLeague(d.league.previous_league_id as string)
-        if (cancelled) return
-
-        if (!sameRosterFormat(d.league.roster_positions, historicalLeague.roster_positions)) {
-          setHistoricalAccuracyNote(
-            `Prior season (${historicalLeague.season}) used a different roster format ` +
-              `(${historicalLeague.roster_positions.join(', ')}) than this season - not structurally ` +
-              `comparable, excluded rather than mixed in.`,
-          )
-          return
-        }
-
-        const [historicalRosters, historicalDraft] = await Promise.all([
-          getLeagueRosters(historicalLeague.league_id),
-          getDraft(historicalLeague.draft_id),
-        ])
-        const [historicalProjections, historicalPicks] = await Promise.all([
-          getProjections(historicalLeague.season),
-          getDraftPicks(historicalLeague.draft_id),
-        ])
-        if (cancelled) return
-
-        const result = computeHistoricalAccuracy(
-          historicalLeague,
-          historicalRosters,
-          historicalProjections,
-          historicalDraft.settings.budget,
-          historicalPicks,
-        )
-        if (!cancelled) setHistoricalAccuracy(result)
-
-        const backtestResult = runBacktest(
-          historicalLeague,
-          historicalRosters,
-          historicalProjections,
-          historicalDraft.settings.budget,
-          historicalPicks,
-        )
-        if (!cancelled) setBacktest(backtestResult)
-      } catch (e) {
-        if (!cancelled) {
-          setHistoricalAccuracyNote(
-            e instanceof Error ? e.message : 'Failed to compute historical accuracy',
-          )
-        }
-      } finally {
-        if (!cancelled) setHistoricalAccuracyLoading(false)
-      }
-    }
-
-    loadHistoricalAccuracy()
     return () => {
       cancelled = true
     }
@@ -699,139 +621,6 @@ function App() {
                 </table>
               </section>
 
-              <section>
-                <h3>Historical Model Accuracy</h3>
-                {historicalAccuracyLoading && <p>Checking prior seasons…</p>}
-                {historicalAccuracyNote && <p>{historicalAccuracyNote}</p>}
-                {historicalAccuracy && (
-                  <>
-                    <p>
-                      Static baseline methodology (Layers 1-2) applied to the {historicalAccuracy.season} season's
-                      real projections and league settings, compared against actual sale prices from that
-                      completed draft. {historicalAccuracy.overall.count} of{' '}
-                      {historicalAccuracy.overall.count + historicalAccuracy.excludedPickCount} picks matched to a
-                      projected player.
-                    </p>
-                    <p>
-                      Overall: mean absolute error ${historicalAccuracy.overall.mae.toFixed(2)}, mean absolute % error{' '}
-                      {(historicalAccuracy.overall.mape * 100).toFixed(0)}%, correlation{' '}
-                      {historicalAccuracy.overall.correlation != null
-                        ? historicalAccuracy.overall.correlation.toFixed(2)
-                        : '—'}
-                    </p>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Position</th>
-                          <th>Picks</th>
-                          <th>MAE</th>
-                          <th>MAPE</th>
-                          <th>Correlation</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(['QB', 'RB', 'WR', 'TE'] as const).map((pos) => {
-                          const s = historicalAccuracy.byPosition[pos]
-                          return (
-                            <tr key={pos}>
-                              <td>{pos}</td>
-                              <td>{s.count}</td>
-                              <td>${s.mae.toFixed(2)}</td>
-                              <td>{(s.mape * 100).toFixed(0)}%</td>
-                              <td>{s.correlation != null ? s.correlation.toFixed(2) : '—'}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                    <p>
-                      Only one structurally comparable historical draft exists for this league (prior seasons used a
-                      different roster format). Per MODELING.md's shrinkage approach, this isn't enough data to
-                      justify moving any heuristic constant away from its documented default — findings here are
-                      informative, not a basis for recalibration yet.
-                    </p>
-                  </>
-                )}
-              </section>
-
-              {backtest && (
-                <section>
-                  <h3>Point-in-Time Backtest</h3>
-                  <p>
-                    Replayed the {backtest.season} draft pick by pick — at each pick, only picks that happened
-                    strictly before it are known, exactly like a live draft. Compares three tiers of increasing
-                    complexity against what each player actually sold for. {backtest.picks.length} of{' '}
-                    {backtest.picks.length + backtest.excludedPickCount} picks matched to a projected player.
-                  </p>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Model</th>
-                        <th>MAE</th>
-                        <th>MAPE</th>
-                        <th>Correlation</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Static baseline only (no draft-day adjustment)</td>
-                        <td>${backtest.static.mae.toFixed(2)}</td>
-                        <td>{(backtest.static.mape * 100).toFixed(0)}%</td>
-                        <td>{backtest.static.correlation != null ? backtest.static.correlation.toFixed(2) : '—'}</td>
-                      </tr>
-                      <tr>
-                        <td>+ League-wide inflation only</td>
-                        <td>${backtest.inflationOnly.mae.toFixed(2)}</td>
-                        <td>{(backtest.inflationOnly.mape * 100).toFixed(0)}%</td>
-                        <td>
-                          {backtest.inflationOnly.correlation != null
-                            ? backtest.inflationOnly.correlation.toFixed(2)
-                            : '—'}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Full model (+ positional scarcity + bidders)</td>
-                        <td>${backtest.fullModel.mae.toFixed(2)}</td>
-                        <td>{(backtest.fullModel.mape * 100).toFixed(0)}%</td>
-                        <td>
-                          {backtest.fullModel.correlation != null ? backtest.fullModel.correlation.toFixed(2) : '—'}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <h4>Full model, by position</h4>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Position</th>
-                        <th>Picks</th>
-                        <th>MAE</th>
-                        <th>MAPE</th>
-                        <th>Correlation</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(['QB', 'RB', 'WR', 'TE'] as const).map((pos) => {
-                        const s = backtest.fullModelByPosition[pos]
-                        return (
-                          <tr key={pos}>
-                            <td>{pos}</td>
-                            <td>{s.count}</td>
-                            <td>${s.mae.toFixed(2)}</td>
-                            <td>{(s.mape * 100).toFixed(0)}%</td>
-                            <td>{s.correlation != null ? s.correlation.toFixed(2) : '—'}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                  <p>
-                    Honest limitation: this draws on the same single historical draft Phase 9 already used. Not a
-                    held-out validation — a sanity/regression check. A better score here doesn't prove the extra
-                    complexity is worth it beyond this one draft.
-                  </p>
-                </section>
-              )}
             </>
           )}
 
