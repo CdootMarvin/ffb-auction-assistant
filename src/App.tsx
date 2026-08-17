@@ -52,6 +52,15 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [connectError, setConnectError] = useState<string | null>(null)
 
+  // Mock draft testing (ROADMAP.md Phase 11 addendum): a Sleeper mock draft has no
+  // queryable league of its own (league_id is null), but metadata.league_id points
+  // back to the real league it was generated from, so we can pull real
+  // scoring/roster settings while polling the mock's own draft_id for live picks.
+  // No real keepers or team identities carry over - honestly represented as 12
+  // fresh, empty rosters, not guessed at.
+  const [mockDraftIdInput, setMockDraftIdInput] = useState('')
+  const [connectedMockDraftId, setConnectedMockDraftId] = useState<string | null>(null)
+
   const [baseline, setBaseline] = useState<BaselineResult | null>(null)
   const [baselineLoading, setBaselineLoading] = useState(false)
   const [baselineError, setBaselineError] = useState<string | null>(null)
@@ -119,6 +128,54 @@ function App() {
       cancelled = true
     }
   }, [connectedLeagueId])
+
+  useEffect(() => {
+    if (!connectedMockDraftId) return
+    let cancelled = false
+
+    async function connectMock() {
+      setLoading(true)
+      setConnectError(null)
+      try {
+        const draft = await getDraft(connectedMockDraftId as string)
+        const realLeagueId = draft.metadata?.league_id
+        if (!realLeagueId) {
+          throw new Error(
+            'This mock draft has no linked league (metadata.league_id is missing) - ' +
+              "can't determine real scoring/roster settings from it.",
+          )
+        }
+        const league = await getLeague(realLeagueId)
+        // Fresh, empty rosters - a mock draft has no real keepers or team
+        // ownership, and its own roster numbering doesn't correspond to the real
+        // league's roster IDs (verified: the mock uses a plain 1..N identity
+        // mapping, unrelated to who owns what in the real league).
+        const rosters: SleeperRoster[] = Array.from({ length: draft.settings.teams }, (_, i) => ({
+          roster_id: i + 1,
+          owner_id: null,
+          co_owners: null,
+          players: [],
+          starters: [],
+          keepers: [],
+        }))
+        if (!cancelled) {
+          setData({ league, users: [], rosters, draft })
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setData(null)
+          setConnectError(e instanceof Error ? e.message : 'Failed to connect to mock draft')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    connectMock()
+    return () => {
+      cancelled = true
+    }
+  }, [connectedMockDraftId])
 
   useEffect(() => {
     if (!data) return
@@ -241,6 +298,19 @@ function App() {
     setSelectedPlayerId(null)
   }
 
+  function handleConnectMock(e: React.FormEvent) {
+    e.preventDefault()
+    const trimmed = mockDraftIdInput.trim()
+    if (!trimmed) return
+    // Accept either a bare draft ID or a pasted Sleeper URL like
+    // sleeper.com/draft/nfl/{id}?query - most people will copy the URL.
+    const urlMatch = trimmed.match(/draft\/nfl\/(\d+)/)
+    const draftId = urlMatch ? urlMatch[1] : trimmed
+    setConnectedMockDraftId(draftId)
+    setSearchQuery('')
+    setSelectedPlayerId(null)
+  }
+
   const sortedPicks = [...picks].sort((a, b) => b.pick_no - a.pick_no)
   const rosterById = new Map(data?.rosters.map((r) => [r.roster_id, r]) ?? [])
 
@@ -318,6 +388,24 @@ function App() {
           {loading ? 'Connecting…' : 'Connect'}
         </button>
       </form>
+
+      <form onSubmit={handleConnectMock} className="connect-form">
+        <label htmlFor="mock-draft-id">Or test against a Sleeper mock draft</label>
+        <input
+          id="mock-draft-id"
+          type="text"
+          value={mockDraftIdInput}
+          onChange={(e) => setMockDraftIdInput(e.target.value)}
+          placeholder="paste the mock draft URL or ID"
+        />
+        <button type="submit" disabled={loading}>
+          {loading ? 'Connecting…' : 'Connect to Mock'}
+        </button>
+      </form>
+      <p className="hint">
+        Uses your real league's scoring/roster settings but no real keepers or team names - useful for
+        live-testing the app against real-time picks before draft day.
+      </p>
 
       {connectError && <p className="error">{connectError}</p>}
 

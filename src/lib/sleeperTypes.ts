@@ -36,7 +36,9 @@ export interface SleeperRoster {
 
 export interface SleeperDraft {
   draft_id: string
-  league_id: string
+  // Null for a mock draft not tied to a queryable league - see metadata.league_id
+  // instead, which points back to the real league it was generated from.
+  league_id: string | null
   status: string
   type: string
   season: string
@@ -45,7 +47,7 @@ export interface SleeperDraft {
     rounds: number
     teams: number
   }
-  metadata: { scoring_type?: string } | null
+  metadata: { scoring_type?: string; league_id?: string; type?: string } | null
 }
 
 export interface SleeperProjection {
