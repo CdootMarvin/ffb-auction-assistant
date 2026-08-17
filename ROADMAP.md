@@ -171,6 +171,10 @@ Goal: make it rock-solid for the actual draft. Performance, mobile/laptop usabil
 
 **Deliberately not built** (would be guessing at needs no real live draft has surfaced yet — see [IDEAS.md](IDEAS.md)): deeper manual-override UI beyond "refresh now" (e.g. manually correcting a pick), an explicit pause/resume affordance beyond auto-reconnect, and full mobile-first redesign (responsive safety net only, not polish - already scoped out in IDEAS.md).
 
+### Addendum — mock draft connect path (2026-08-12)
+
+Added after Phase 11 shipped, prompted by wanting to live-test the app against real-time picks before the actual draft — something no prior phase could test (only ever a fully-completed historical draft or an empty pre-draft state). Sleeper mock drafts have no queryable league of their own, but `metadata.league_id` on the draft object points back to the real league they were generated from. Added a second connect form (paste a mock draft URL or ID) that pulls real scoring/roster settings via that link while polling the mock's own `draft_id` for live picks — 12 fresh, honestly-empty rosters (no real keepers, no real team names; verified the mock's roster numbering is an unrelated 1..N identity mapping, not worth faking a match to real teams). Needed zero changes to valuation/economy/scarcity/bidders/dynamic-value logic — reuses the exact same `LeagueData` shape the real flow already produces. Verified against a real mock draft the user created.
+
 ---
 
 ## Explicitly postponed beyond Phase 11 (see [IDEAS.md](IDEAS.md) for the full parking lot)
